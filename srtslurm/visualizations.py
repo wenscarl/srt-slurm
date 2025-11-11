@@ -242,7 +242,7 @@ def create_node_metric_graph(
             continue
 
         # Import get_node_label from log_parser
-        from utils.log_parser import get_node_label
+        from srtslurm.log_parser import get_node_label
 
         label = get_node_label(node_data)
         color = colors[idx % len(colors)]

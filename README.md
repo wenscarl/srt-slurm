@@ -52,52 +52,45 @@ uv sync --extra dev
 # Setup pre-commit hooks
 pre-commit install
 
-# Run ruff manually
-pre-commit run --all-files
+# Run linting and type checking
+make lint
 
-# Or run ruff directly
-uv run ruff check .
-uv run ruff format .
+# Run tests
+uv run python -m tests.test_basic
+uv run python -m tests.test_aggregations
 ```
 
 ## Directory Structure
 
 The app expects benchmark runs in subdirectories with:
 
+- `{jobid}.json` - Metadata file with run configuration (required)
 - `vllm_isl_*_osl_*/` containing `*.json` result files
 - `*_config.json` files for node configurations
-- `{jobid}.json` - **NEW!** Metadata file with run configuration (faster parsing, no regex needed)
+- `*_prefill_*.err` and `*_decode_*.err` files for node metrics
 
-### Metadata File Format (Recommended)
+## Architecture
 
-Starting with job 3667, runs can include a `{jobid}.json` file (e.g., `3667.json`) with structured metadata:
+Uses a **class-based architecture** with type-safe models:
 
-```json
-{
-  "version": "1.0",
-  "run_metadata": {
-    "slurm_job_id": "3667",
-    "run_date": "20251110_192145",
-    "container": "/path/to/container.sqsh",
-    "prefill_workers": 1,
-    "decode_workers": 12,
-    ...
-  },
-  "profiler_metadata": {
-    "type": "vllm",
-    "isl": "1024",
-    "osl": "1024",
-    ...
-  }
-}
+```python
+from srtslurm import RunLoader, NodeAnalyzer
+
+# Load benchmark runs from {jobid}.json files
+loader = RunLoader(".")
+runs = loader.load_all()  # Returns List[BenchmarkRun]
+
+# Access typed data
+run = runs[0]
+print(f"{run.job_id}: {run.metadata.formatted_date}")
+print(f"Topology: {run.metadata.prefill_nodes}P/{run.metadata.decode_nodes}D")
+print(f"GPUs: {run.metadata.total_gpus}")
+
+# Analyze node metrics from .err log files
+analyzer = NodeAnalyzer()
+nodes = analyzer.parse_run_logs(run.metadata.path)
+prefill = analyzer.get_prefill_nodes(nodes)
+decode = analyzer.get_decode_nodes(nodes)
 ```
 
-**Benefits:**
-
-- ✅ **10x faster** - No regex parsing of log files needed
-- ✅ **More reliable** - Structured data instead of text scraping
-- ✅ **Backward compatible** - Old runs without this file still work (with legacy parsing)
-
-If this file is missing, the dashboard falls back to parsing log files (with a prominent warning).
-
-See `LOG_STRUCTURE.md` for detailed format.
+See `CLASS_BASED_USAGE.md` for detailed API documentation and `LOG_STRUCTURE.md` for file formats.
