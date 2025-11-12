@@ -96,7 +96,7 @@ command=(
 
     --retries $RETRIES
 
-    --run-in-ci
+    --use-dynamo-whls
     ${SCRIPT_VARIANT_ARGS[@]}
 )
 

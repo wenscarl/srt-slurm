@@ -140,7 +140,7 @@ def create_job_metadata(
             "script_variant": args.script_variant,
             "use_init_location": args.use_init_location,
             "enable_config_dump": args.enable_config_dump,
-            "run_in_ci": args.run_in_ci,
+            "use_dynamo_whls": args.use_dynamo_whls,
             "log_dir": args.log_dir if args.log_dir else "repo_root",
         },
         "profiler_metadata": profiler_config,
@@ -298,9 +298,9 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     )
 
     parser.add_argument(
-        "--run-in-ci",
+        "--use-dynamo-whls",
         action="store_true",
-        help="Run in CI mode - use binaries from /configs/ for nats/etcd and install dynamo wheel",
+        help="Use dynamo wheel files from config-dir and binaries from /configs/ for nats/etcd",
     )
 
     parser.add_argument(
@@ -515,7 +515,7 @@ def main(input_args: list[str] | None = None):
         "profiler_arg": parsable_config,
         "timestamp": timestamp,
         "enable_config_dump": args.enable_config_dump,
-        "run_in_ci": args.run_in_ci,
+        "use_dynamo_whls": args.use_dynamo_whls,
         "log_dir_prefix": log_dir_prefix,
     }
 

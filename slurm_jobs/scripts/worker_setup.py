@@ -211,9 +211,9 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     )
 
     parser.add_argument(
-        "--run-in-ci",
+        "--use-dynamo-whls",
         action="store_true",
-        help="Run in CI mode - use binaries from /configs/ for nats/etcd",
+        help="Use dynamo wheels from config-dir and binaries from /configs/ for nats/etcd",
     )
 
     return parser.parse_args(args)
@@ -255,7 +255,7 @@ def setup_env_vars_for_gpu_script(
     port: int = DIST_INIT_PORT,
     use_init_locations: bool = True,
     dump_config_path: str | None = None,
-    run_in_ci: bool = False,
+    use_dynamo_whls: bool = False,
 ):
     """Setup environment variables required by GPU scripts (gb200-fp8.sh)"""
     os.environ["HOST_IP_MACHINE"] = host_ip
@@ -264,7 +264,7 @@ def setup_env_vars_for_gpu_script(
     os.environ["RANK"] = str(local_rank)
     os.environ["TOTAL_NODES"] = str(total_nodes)
     os.environ["USE_INIT_LOCATIONS"] = str(use_init_locations)
-    os.environ["RUN_IN_CI"] = str(run_in_ci)
+    os.environ["USE_DYNAMO_WHLS"] = str(use_dynamo_whls)
     if dump_config_path:
         os.environ["DUMP_CONFIG_PATH"] = dump_config_path
     else:
@@ -276,7 +276,7 @@ def setup_env_vars_for_gpu_script(
     logging.info(f"Set RANK: {local_rank}")
     logging.info(f"Set TOTAL_NODES: {total_nodes}")
     logging.info(f"Set USE_INIT_LOCATIONS: {use_init_locations}")
-    logging.info(f"Set RUN_IN_CI: {run_in_ci}")
+    logging.info(f"Set USE_DYNAMO_WHLS: {use_dynamo_whls}")
     if dump_config_path:
         logging.info(f"Set DUMP_CONFIG_PATH: {dump_config_path}")
 
@@ -307,13 +307,13 @@ def get_gpu_command(
         return f"bash {script_path} {mode}"
 
 
-def setup_head_prefill_node(prefill_host_ip: str, run_in_ci: bool = False) -> None:
+def setup_head_prefill_node(prefill_host_ip: str, use_dynamo_whls: bool = False) -> None:
     """
     Setup NATS, etcd, ingress, and http servers on the prefill host node.
     """
-    if run_in_ci:
+    if use_dynamo_whls:
         logging.info(
-            f"Starting nats server on node {prefill_host_ip} (CI mode - using /configs/nats-server)"
+            f"Starting nats server on node {prefill_host_ip} (using /configs/nats-server)"
         )
         nats_cmd = "/configs/nats-server -js"
     else:
@@ -324,9 +324,9 @@ def setup_head_prefill_node(prefill_host_ip: str, run_in_ci: bool = False) -> No
     if not nats_process:
         raise RuntimeError("Failed to start nats-server")
 
-    if run_in_ci:
+    if use_dynamo_whls:
         logging.info(
-            f"Starting etcd server on node {prefill_host_ip} (CI mode - using /configs/etcd)"
+            f"Starting etcd server on node {prefill_host_ip} (using /configs/etcd)"
         )
         etcd_binary = "/configs/etcd"
     else:
@@ -357,14 +357,14 @@ def setup_nginx_worker(master_ip: str, nginx_config: str) -> int:
 
 
 def setup_frontend_worker(
-    worker_idx: int, master_ip: str, run_in_ci: bool = False
+    worker_idx: int, master_ip: str, use_dynamo_whls: bool = False
 ) -> int:
     """Setup a frontend worker"""
     logging.info(f"Setting up frontend worker {worker_idx}")
 
     # First frontend (worker_idx 0) also sets up NATS/ETCD
     if worker_idx == 0:
-        setup_head_prefill_node(master_ip, run_in_ci)
+        setup_head_prefill_node(master_ip, use_dynamo_whls)
     else:
         logging.info(f"Setting up additional frontend worker {worker_idx}")
         if not wait_for_etcd(f"http://{master_ip}:{ETCD_CLIENT_PORT}"):
@@ -372,7 +372,7 @@ def setup_frontend_worker(
 
     # All frontends run the ingress server
     frontend_cmd = "python3 -m dynamo.frontend --http-port=8000"
-    if run_in_ci:
+    if use_dynamo_whls:
         frontend_cmd = "python3 -m pip install /configs/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_aarch64.whl && python3 -m pip install /configs/ai_dynamo-0.6.1-py3-none-any.whl && python3 -m dynamo.frontend --http-port=8000"
     return run_command(frontend_cmd)
 
@@ -389,7 +389,7 @@ def setup_prefill_worker(
     use_init_locations: bool = True,
     dump_config_path: str | None = None,
     script_variant: str = "default",
-    run_in_ci: bool = False,
+    use_dynamo_whls: bool = False,
 ) -> int:
     """
     Setup the prefill worker.
@@ -397,7 +397,7 @@ def setup_prefill_worker(
     total_gpus = nodes_per_worker * gpus_per_node
     # Only setup infrastructure in traditional mode (not multiple frontends)
     if not multiple_frontends_enabled and worker_idx == 0 and local_rank == 0:
-        setup_head_prefill_node(master_ip, run_in_ci)
+        setup_head_prefill_node(master_ip, use_dynamo_whls)
     else:
         logging.info(f"Setting up prefill worker {worker_idx}, local rank {local_rank}")
         if not wait_for_etcd(f"http://{master_ip}:{ETCD_CLIENT_PORT}"):
@@ -411,7 +411,7 @@ def setup_prefill_worker(
         nodes_per_worker,
         use_init_locations=use_init_locations,
         dump_config_path=dump_config_path,
-        run_in_ci=run_in_ci,
+        use_dynamo_whls=use_dynamo_whls,
     )
 
     # Use appropriate GPU script instead of generating command directly
@@ -430,7 +430,7 @@ def setup_decode_worker(
     use_init_locations: bool = True,
     dump_config_path: str | None = None,
     script_variant: str = "default",
-    run_in_ci: bool = False,
+    use_dynamo_whls: bool = False,
 ) -> int:
     """
     Setup the decode worker.
@@ -449,7 +449,7 @@ def setup_decode_worker(
         nodes_per_worker,
         use_init_locations=use_init_locations,
         dump_config_path=dump_config_path,
-        run_in_ci=run_in_ci,
+        use_dynamo_whls=use_dynamo_whls,
     )
 
     # Use appropriate GPU script instead of generating command directly
@@ -468,7 +468,7 @@ def setup_aggregated_worker(
     multiple_frontends_enabled: bool = False,
     dump_config_path: str | None = None,
     script_variant: str = "default",
-    run_in_ci: bool = False,
+    use_dynamo_whls: bool = False,
 ) -> int:
     """
     Setup the aggregated worker.
@@ -476,7 +476,7 @@ def setup_aggregated_worker(
     total_gpus = nodes_per_worker * gpus_per_node
     # Only setup infrastructure in traditional mode (not multiple frontends) on first worker, first node
     if not multiple_frontends_enabled and worker_idx == 0 and local_rank == 0:
-        setup_head_prefill_node(master_ip, run_in_ci)
+        setup_head_prefill_node(master_ip, use_dynamo_whls)
     else:
         logging.info(
             f"Setting up aggregated worker {worker_idx}, local rank {local_rank}"
@@ -493,7 +493,7 @@ def setup_aggregated_worker(
         nodes_per_worker,
         use_init_locations=False,
         dump_config_path=dump_config_path,
-        run_in_ci=run_in_ci,
+        use_dynamo_whls=use_dynamo_whls,
     )
 
     # Use appropriate aggregated GPU script
@@ -528,7 +528,7 @@ def main(input_args: list[str] | None = None):
     logging.info(f"Leader IP: {args.leader_ip}")
     logging.info(f"Master IP: {args.master_ip}")
     logging.info(f"Nodes per worker: {args.nodes_per_worker}")
-    logging.info(f"Run in CI mode?: {args.run_in_ci}")
+    logging.info(f"Use dynamo wheels?: {args.use_dynamo_whls}")
     logging.info(f"Use init locations?: {args.use_init_locations}")
 
     setup_env(args.master_ip)
@@ -538,7 +538,7 @@ def main(input_args: list[str] | None = None):
             raise ValueError("--nginx_config is required for nginx worker type")
         setup_nginx_worker(args.master_ip, args.nginx_config)
     elif args.worker_type == "frontend":
-        setup_frontend_worker(args.worker_idx, args.master_ip, args.run_in_ci)
+        setup_frontend_worker(args.worker_idx, args.master_ip, args.use_dynamo_whls)
     elif args.worker_type == "prefill":
         setup_prefill_worker(
             args.worker_idx,
@@ -552,7 +552,7 @@ def main(input_args: list[str] | None = None):
             args.use_init_locations,
             args.dump_config_path,
             args.script_variant,
-            args.run_in_ci,
+            args.use_dynamo_whls,
         )
     elif args.worker_type == "decode":
         setup_decode_worker(
@@ -566,7 +566,7 @@ def main(input_args: list[str] | None = None):
             args.use_init_locations,
             args.dump_config_path,
             args.script_variant,
-            args.run_in_ci,
+            args.use_dynamo_whls,
         )
     elif args.worker_type == "aggregated":
         setup_aggregated_worker(
@@ -580,7 +580,7 @@ def main(input_args: list[str] | None = None):
             args.multiple_frontends_enabled,
             args.dump_config_path,
             args.script_variant,
-            args.run_in_ci,
+            args.use_dynamo_whls,
         )
 
     logging.info(f"{args.worker_type.capitalize()} worker setup complete")

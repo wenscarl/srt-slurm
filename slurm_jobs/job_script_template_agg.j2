@@ -171,10 +171,10 @@ WORKER_ARGS="--gpu_type ${GPU_TYPE} --script-variant ${SCRIPT_VARIANT} --gpus_pe
 WORKER_ARGS="$WORKER_ARGS --multiple-frontends-enabled"
 {% endraw %}
 {% endif %}
-{% if run_in_ci %}
+{% if use_dynamo_whls %}
 {% raw %}
-# Add CI mode flag for worker setup
-WORKER_ARGS="$WORKER_ARGS --run-in-ci"
+# Use dynamo wheels from configs
+WORKER_ARGS="$WORKER_ARGS --use-dynamo-whls"
 {% endraw %}
 {% endif %}
 {% raw %}

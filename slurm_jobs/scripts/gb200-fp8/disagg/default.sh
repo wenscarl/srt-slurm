@@ -62,15 +62,15 @@ if [ -z "$USE_INIT_LOCATIONS" ]; then
     exit 1
 fi
 
-if [ -z "$RUN_IN_CI" ]; then
-    echo "Error: RUN_IN_CI environment variable is not set"
+if [ -z "$USE_DYNAMO_WHLS" ]; then
+    echo "Error: USE_DYNAMO_WHLS environment variable is not set"
     exit 1
 fi
 
 # Construct command based on mode
 if [ "$mode" = "prefill" ]; then
     set -x
-    if [[ "${RUN_IN_CI,,}" == "true" ]]; then
+    if [[ "${USE_DYNAMO_WHLS,,}" == "true" ]]; then
         python3 -m pip install /configs/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_aarch64.whl
         python3 -m pip install /configs/ai_dynamo-0.6.1-py3-none-any.whl
     fi
@@ -131,7 +131,7 @@ if [ "$mode" = "prefill" ]; then
 
 elif [ "$mode" = "decode" ]; then
     set -x
-    if [[ "${RUN_IN_CI,,}" == "true" ]]; then
+    if [[ "${USE_DYNAMO_WHLS,,}" == "true" ]]; then
         python3 -m pip install /configs/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_aarch64.whl
         python3 -m pip install /configs/ai_dynamo-0.6.1-py3-none-any.whl
     fi
