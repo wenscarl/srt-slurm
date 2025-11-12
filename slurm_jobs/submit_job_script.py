@@ -241,8 +241,8 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     parser.add_argument(
         "--script-variant",
         type=str,
-        default="default",
-        help="Script variant to use (e.g., 'default', 'optim', 'decode-optim'). Defaults to 'default.sh'",
+        required=True,
+        help="Script variant to use (e.g., 'max-tpt', '1p_4d'). Corresponds to the .sh filename without extension.",
     )
 
     parser.add_argument(

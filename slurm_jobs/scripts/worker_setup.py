@@ -181,8 +181,7 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     parser.add_argument(
         "--script-variant",
         type=str,
-        default="default",
-        help="Script variant to use (e.g., 'default', 'optim', 'decode-optim'). Defaults to 'default'",
+        help="Script variant to use (e.g., 'max-tpt', '1p_4d')",
     )
 
     parser.add_argument(
@@ -282,7 +281,7 @@ def setup_env_vars_for_gpu_script(
 
 
 def get_gpu_command(
-    worker_type: str, gpu_type: str, script_variant: str = "default"
+    worker_type: str, gpu_type: str, script_variant: str
 ) -> str:
     """Generate command to run the appropriate GPU script.
 
@@ -385,10 +384,10 @@ def setup_prefill_worker(
     nodes_per_worker: int,
     gpus_per_node: int,
     gpu_type: str,
+    script_variant: str,
     multiple_frontends_enabled: bool = False,
     use_init_locations: bool = True,
     dump_config_path: str | None = None,
-    script_variant: str = "default",
     use_dynamo_whls: bool = False,
 ) -> int:
     """
@@ -427,9 +426,9 @@ def setup_decode_worker(
     nodes_per_worker: int,
     gpus_per_node: int,
     gpu_type: str,
+    script_variant: str,
     use_init_locations: bool = True,
     dump_config_path: str | None = None,
-    script_variant: str = "default",
     use_dynamo_whls: bool = False,
 ) -> int:
     """
@@ -465,9 +464,9 @@ def setup_aggregated_worker(
     nodes_per_worker: int,
     gpus_per_node: int,
     gpu_type: str,
+    script_variant: str,
     multiple_frontends_enabled: bool = False,
     dump_config_path: str | None = None,
-    script_variant: str = "default",
     use_dynamo_whls: bool = False,
 ) -> int:
     """
@@ -548,10 +547,10 @@ def main(input_args: list[str] | None = None):
             args.nodes_per_worker,
             args.gpus_per_node,
             args.gpu_type,
+            args.script_variant,
             args.multiple_frontends_enabled,
             args.use_init_locations,
             args.dump_config_path,
-            args.script_variant,
             args.use_dynamo_whls,
         )
     elif args.worker_type == "decode":
@@ -563,9 +562,9 @@ def main(input_args: list[str] | None = None):
             args.nodes_per_worker,
             args.gpus_per_node,
             args.gpu_type,
+            args.script_variant,
             args.use_init_locations,
             args.dump_config_path,
-            args.script_variant,
             args.use_dynamo_whls,
         )
     elif args.worker_type == "aggregated":
@@ -577,9 +576,9 @@ def main(input_args: list[str] | None = None):
             args.nodes_per_worker,
             args.gpus_per_node,
             args.gpu_type,
+            args.script_variant,
             args.multiple_frontends_enabled,
             args.dump_config_path,
-            args.script_variant,
             args.use_dynamo_whls,
         )
 

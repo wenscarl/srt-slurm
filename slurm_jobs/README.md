@@ -52,6 +52,7 @@ You can customize the log directory location using the `--log-dir` argument:
      --gpus-per-node 4 \
      --config-dir <path-to>/klconfigs \
      --gpu-type gb200-fp8 \
+     --script-variant max-tpt \
      --network-interface enP6p9s0np0 \
      --prefill-nodes 6 \
      --decode-nodes 12 \
@@ -73,6 +74,7 @@ You can customize the log directory location using the `--log-dir` argument:
    - `--gpus-per-node 4`: Number of GPUs per node (each GB200 tray has 4 GPUs)
    - `--config-dir <path-to>/klconfigs`: Various configs (see explanation below)
    - `--gpu-type gb200-fp8`: GPU type to use, choices: `gb200-fp8`
+   - `--script-variant max-tpt`: Script variant to run (e.g., `max-tpt`, `1p_4d`). Corresponds to shell scripts in `scripts/<gpu-type>/<agg|disagg>/`
    - `--network-interface enP6p9s0np0`: Network interface to use (depends on your cluster)
    - `--prefill-nodes 6`: Number of prefill nodes
    - `--decode-nodes 12`: Number of decode nodes

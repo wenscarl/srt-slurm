@@ -26,7 +26,7 @@ export CONTAINER_IMAGE=
 bash submit_disagg.sh \
 $PREFILL_NODES $PREFILL_WORKERS $DECODE_NODES $DECODE_WORKERS \
 $ADDITIONAL_FRONTENDS \
-$ISL $OSL $CONCURRENCIES $REQUEST_RATE
+$ISL $OSL $CONCURRENCIES $REQUEST_RATE $SCRIPT_VARIANT
 ======== end script area ========
 USAGE
 }
@@ -64,6 +64,12 @@ CONCURRENCIES=$8
 REQUEST_RATE=$9
 SCRIPT_VARIANT=${10}
 
+if [[ -z "$SCRIPT_VARIANT" ]]; then
+    echo "Error: SCRIPT_VARIANT (arg 10) is required (e.g., 'max-tpt', '1p_4d')" >&2
+    usage >&2
+    exit 1
+fi
+
 RETRIES=1 # defaults to retry the job 1 time to avoid transient errors
 
 # Should not need retries
@@ -73,11 +79,6 @@ profiler_args="type=vllm; isl=${ISL}; osl=${OSL}; concurrencies=${CONCURRENCIES}
 USE_INIT_LOCATIONS=()
 if [[ $PREFILL_NODES -eq 6 ]] && [[ $PREFILL_WORKERS -eq 3 ]] && [[ $DECODE_NODES -eq 12 ]] && [[ $DECODE_WORKERS -eq 1 ]]; then
     USE_INIT_LOCATIONS=(--use-init-location)
-fi
-
-SCRIPT_VARIANT_ARGS=()
-if [[ -n "$SCRIPT_VARIANT" ]]; then
-    SCRIPT_VARIANT_ARGS=(--script-variant "$SCRIPT_VARIANT")
 fi
 
 command=(
@@ -97,7 +98,7 @@ command=(
     --retries $RETRIES
 
     --use-dynamo-whls
-    ${SCRIPT_VARIANT_ARGS[@]}
+    --script-variant "$SCRIPT_VARIANT"
 )
 
 "${command[@]}"
