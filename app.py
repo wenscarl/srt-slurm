@@ -64,6 +64,18 @@ st.markdown(
         border-radius: 0.5rem;
         margin: 0.5rem 0;
     }
+    /* Prevent truncation in multiselect */
+    [data-baseweb="select"] span {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    /* Fix multiselect dropdown items */
+    [data-baseweb="popover"] li {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -657,13 +669,12 @@ def main():
         run_labels.append(label)
         label_to_run[label] = run
 
-    # Multiselect with formatted labels (use max_selections=None to show all)
+    # Multiselect with formatted labels
     selected_labels = st.sidebar.multiselect(
         "Select runs to compare",
         options=run_labels,
         default=run_labels[: min(3, len(run_labels))],  # Select first 3 by default
         help="Select one or more runs to visualize",
-        label_visibility="visible",
     )
 
     if not selected_labels:

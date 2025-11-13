@@ -623,6 +623,14 @@ def create_pareto_graph(
     for idx, run_id in enumerate(selected_runs):
         run_data = df[df["Run ID"] == run_id]
 
+        # Choose which throughput to show based on y_metric
+        if y_metric == "Total TPS/GPU":
+            tps_label = "Total TPS"
+            tps_column = "Total TPS"
+        else:
+            tps_label = "Output TPS"
+            tps_column = "Output TPS"
+
         fig.add_trace(
             go.Scatter(
                 x=run_data["Output TPS/User"],
@@ -636,7 +644,7 @@ def create_pareto_graph(
                     f"Concurrency: {row['Concurrency']}<br>"
                     f"Output TPS/User: {row['Output TPS/User']:.2f}<br>"
                     f"{y_metric}: {row[y_metric]:.2f}<br>"
-                    f"Output TPS: {row['Output TPS']:.2f}<br>"
+                    f"{tps_label}: {row[tps_column]:.2f}<br>"
                     f"Mean TTFT: {row['Mean TTFT (ms)']:.2f} ms<br>"
                     f"Mean TPOT: {row['Mean TPOT (ms)']:.2f} ms"
                     for _, row in run_data.iterrows()
