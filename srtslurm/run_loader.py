@@ -47,6 +47,15 @@ class RunLoader:
                 if run is not None:
                     # Load benchmark results from profiler output files
                     self._load_benchmark_results(run)
+                    
+                    # Check if all expected results are present
+                    run.check_completeness()
+                    
+                    # Warn if job is incomplete
+                    if not run.is_complete:
+                        logger.warning(
+                            f"Job {run.job_id} is incomplete - missing concurrencies: {run.missing_concurrencies}"
+                        )
 
                     # Only include runs with benchmark data
                     if run.profiler.output_tps:
@@ -84,6 +93,11 @@ class RunLoader:
             run = BenchmarkRun.from_json_file(run_path)
             if run is not None:
                 self._load_benchmark_results(run)
+                run.check_completeness()
+                if not run.is_complete:
+                    logger.warning(
+                        f"Job {run.job_id} is incomplete - missing concurrencies: {run.missing_concurrencies}"
+                    )
             return run
         except Exception as e:
             logger.error(f"Error loading run from {run_path}: {e}")

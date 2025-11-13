@@ -223,6 +223,8 @@ class BenchmarkRun:
 
     metadata: RunMetadata
     profiler: ProfilerResults
+    is_complete: bool = True
+    missing_concurrencies: list[int] = field(default_factory=list)
 
     @classmethod
     def from_json_file(cls, run_path: str) -> "BenchmarkRun | None":
@@ -265,6 +267,35 @@ class BenchmarkRun:
     def total_gpus(self) -> int:
         """Calculate total GPU count."""
         return self.metadata.total_gpus
+
+    def check_completeness(self) -> None:
+        """Check if all expected benchmark results are present.
+        
+        Compares expected concurrencies from profiler metadata with actual results.
+        Updates is_complete and missing_concurrencies fields.
+        """
+        # Parse expected concurrencies from metadata
+        if not self.profiler.concurrencies:
+            # No expected concurrencies specified, assume manual run
+            self.is_complete = True
+            self.missing_concurrencies = []
+            return
+        
+        expected = set()
+        for val in self.profiler.concurrencies.split("x"):
+            try:
+                expected.add(int(val.strip()))
+            except ValueError:
+                continue
+        
+        # Get actual concurrencies from results
+        actual = set(self.profiler.concurrency_values)
+        
+        # Find missing ones
+        missing = expected - actual
+        
+        self.is_complete = len(missing) == 0
+        self.missing_concurrencies = sorted(list(missing))
 
 
 @dataclass

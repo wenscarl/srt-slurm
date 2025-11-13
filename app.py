@@ -115,6 +115,8 @@ def _run_to_dict(run) -> dict:
         "mean_ttft_ms": run.profiler.mean_ttft_ms,
         "mean_tpot_ms": run.profiler.mean_tpot_ms,
         "request_rate": run.profiler.request_rate,
+        "is_complete": run.is_complete,
+        "missing_concurrencies": run.missing_concurrencies,
     }
 
 
@@ -710,6 +712,17 @@ def main():
 
     # Filter runs based on selected labels
     filtered_runs = [label_to_run[label] for label in selected_labels]
+    
+    # Check for incomplete runs and warn user
+    incomplete_runs = [run for run in filtered_runs if not run.get("is_complete", True)]
+    if incomplete_runs:
+        for run in incomplete_runs:
+            job_id = run.get("slurm_job_id", "Unknown").split("_")[0]
+            missing = run.get("missing_concurrencies", [])
+            st.warning(
+                f"⚠️ **Job {job_id} is incomplete** - Missing concurrencies: {missing}. "
+                f"Job may have failed or timed out before completing all benchmarks."
+            )
 
     # Extract run IDs for compatibility with existing graph functions
     selected_runs = [run.get("slurm_job_id", "Unknown") for run in filtered_runs]
@@ -1581,6 +1594,11 @@ def main():
                     "decode_tp", 0
                 ) * run_a.get("decode_dp", 0)
                 st.caption(f"🎯 Total GPUs: {total_gpus_a}")
+                
+                # Warn if job is incomplete
+                if not run_a.get("is_complete", True):
+                    missing = run_a.get("missing_concurrencies", [])
+                    st.warning(f"⚠️ **Incomplete job** - Missing concurrencies: {missing}")
 
         with col2:
             st.markdown("**Run B (Comparison)**")
@@ -1600,6 +1618,11 @@ def main():
                     "decode_tp", 0
                 ) * run_b.get("decode_dp", 0)
                 st.caption(f"🎯 Total GPUs: {total_gpus_b}")
+                
+                # Warn if job is incomplete
+                if not run_b.get("is_complete", True):
+                    missing = run_b.get("missing_concurrencies", [])
+                    st.warning(f"⚠️ **Incomplete job** - Missing concurrencies: {missing}")
 
         # Validation
         if run_a_label == run_b_label:

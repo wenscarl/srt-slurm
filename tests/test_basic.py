@@ -16,24 +16,24 @@ def test_run_loader():
 
     # Test loading all runs
     runs = loader.load_all()
-    assert len(runs) == 1, f"Expected 1 run, got {len(runs)}"
+    assert len(runs) == 2, f"Expected 2 runs, got {len(runs)}"
 
-    # Test run metadata
-    run = runs[0]
-    assert run.job_id == "9999"
-    assert run.metadata.prefill_nodes == 1
-    assert run.metadata.decode_nodes == 2
-    assert run.metadata.gpus_per_node == 4
-    assert run.metadata.total_gpus == 12  # (1 + 2) * 4
-    assert run.metadata.formatted_date == "Nov 10"
+    # Test run 9999 metadata
+    run_9999 = [r for r in runs if r.job_id == "9999"][0]
+    assert run_9999.job_id == "9999"
+    assert run_9999.metadata.prefill_nodes == 1
+    assert run_9999.metadata.decode_nodes == 2
+    assert run_9999.metadata.gpus_per_node == 4
+    assert run_9999.metadata.total_gpus == 12  # (1 + 2) * 4
+    assert run_9999.metadata.formatted_date == "Nov 10"
 
     # Test profiler results
-    assert run.profiler.profiler_type == "vllm"
-    assert run.profiler.isl == "512"
-    assert run.profiler.osl == "256"
-    assert len(run.profiler.output_tps) == 2
-    assert run.profiler.output_tps[0] == 1234.5
-    assert run.profiler.output_tps[1] == 2345.6
+    assert run_9999.profiler.profiler_type == "vllm"
+    assert run_9999.profiler.isl == "512"
+    assert run_9999.profiler.osl == "256"
+    assert len(run_9999.profiler.output_tps) == 2
+    assert run_9999.profiler.output_tps[0] == 1234.5
+    assert run_9999.profiler.output_tps[1] == 2345.6
 
 
 def test_node_analyzer():
@@ -110,6 +110,38 @@ def test_node_count():
     assert decode_count == 2
 
 
+def test_incomplete_job_detection():
+    """Test that incomplete jobs are detected correctly."""
+    test_dir = os.path.dirname(__file__)
+    
+    loader = RunLoader(test_dir)
+    runs = loader.load_all()
+    assert len(runs) == 2, f"Expected 2 runs, got {len(runs)}"
+    
+    # Sort by job_id to get consistent ordering
+    runs = sorted(runs, key=lambda r: r.job_id)
+    
+    # Test run 8888 - INCOMPLETE (expects 128x256x512, only has 128 and 256)
+    run_8888 = [r for r in runs if r.job_id == "8888"][0]
+    assert run_8888.profiler.concurrencies == "128x256x512"
+    assert len(run_8888.profiler.concurrency_values) == 2
+    assert set(run_8888.profiler.concurrency_values) == {128, 256}
+    
+    # Should be marked as INCOMPLETE with missing concurrency 512
+    assert run_8888.is_complete is False
+    assert run_8888.missing_concurrencies == [512]
+    
+    # Test run 9999 - COMPLETE (expects 128x256, has both)
+    run_9999 = [r for r in runs if r.job_id == "9999"][0]
+    assert run_9999.profiler.concurrencies == "128x256"
+    assert len(run_9999.profiler.concurrency_values) == 2
+    assert set(run_9999.profiler.concurrency_values) == {128, 256}
+    
+    # Should be marked as complete
+    assert run_9999.is_complete is True
+    assert run_9999.missing_concurrencies == []
+
+
 if __name__ == "__main__":
     # Run tests when executed directly
     test_run_loader()
@@ -120,5 +152,8 @@ if __name__ == "__main__":
 
     test_node_count()
     print("✅ test_node_count passed")
+    
+    test_incomplete_job_detection()
+    print("✅ test_incomplete_job_detection passed")
 
     print("\n✅ All basic tests passed!")
