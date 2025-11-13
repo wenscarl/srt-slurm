@@ -660,13 +660,13 @@ def main():
         # Extract job number
         job_num = job_id.split("_")[0] if "_" in job_id else job_id
 
-        # Create compact label
+        # Create compact label for multiselect (without job ID)
         topology = f"{run.get('prefill_dp', '?')}P/{run.get('decode_dp', '?')}D"
         isl = run.get("isl", "?")
         osl = run.get("osl", "?")
         gpu_type = run.get("gpu_type", "")
         gpu_suffix = f" [{gpu_type}]" if gpu_type else ""
-        label = f"{job_num} | {topology} | {isl}/{osl}{gpu_suffix}"
+        label = f"{topology} | {isl}/{osl}{gpu_suffix}"
 
         run_labels.append(label)
         label_to_run[label] = run
@@ -699,6 +699,18 @@ def main():
 
     # Extract run IDs for compatibility with existing graph functions
     selected_runs = [run.get("slurm_job_id", "Unknown") for run in filtered_runs]
+    
+    # Build legend labels for graphs (run_id -> full label with job number)
+    run_legend_labels = {}
+    for run in filtered_runs:
+        run_id = run.get("slurm_job_id", "Unknown")
+        job_num = run_id.split("_")[0] if "_" in run_id else run_id
+        topology = f"{run.get('prefill_dp', '?')}P/{run.get('decode_dp', '?')}D"
+        isl = run.get("isl", "?")
+        osl = run.get("osl", "?")
+        gpu_type = run.get("gpu_type", "")
+        gpu_suffix = f" [{gpu_type}]" if gpu_type else ""
+        run_legend_labels[run_id] = f"Job {job_num} | {topology} | {isl}/{osl}{gpu_suffix}"
 
     # Get dataframe - use helper function to convert dicts
     df = _runs_to_dataframe(filtered_runs)
@@ -782,7 +794,7 @@ def main():
             """)
 
         pareto_fig = create_pareto_graph(
-            df, selected_runs, show_cutoff, cutoff_value, show_frontier, y_axis_metric
+            df, selected_runs, show_cutoff, cutoff_value, show_frontier, y_axis_metric, run_legend_labels
         )
         pareto_fig.update_xaxes(showgrid=True)
         pareto_fig.update_yaxes(showgrid=True)
@@ -1740,6 +1752,18 @@ def main():
                         run_b_id = run_b.get("slurm_job_id", "Unknown")
                         selected_for_comparison = [run_a_id, run_b_id]
                         comparison_df = df[df["Run ID"].isin(selected_for_comparison)]
+                        
+                        # Build legend labels for comparison
+                        comparison_labels = {}
+                        for r in [run_a, run_b]:
+                            r_id = r.get("slurm_job_id", "Unknown")
+                            job_num = r_id.split("_")[0] if "_" in r_id else r_id
+                            topology = f"{r.get('prefill_dp', '?')}P/{r.get('decode_dp', '?')}D"
+                            isl = r.get("isl", "?")
+                            osl = r.get("osl", "?")
+                            gpu_type = r.get("gpu_type", "")
+                            gpu_suffix = f" [{gpu_type}]" if gpu_type else ""
+                            comparison_labels[r_id] = f"Job {job_num} | {topology} | {isl}/{osl}{gpu_suffix}"
 
                         if not comparison_df.empty:
                             # Pareto comparison
@@ -1750,6 +1774,7 @@ def main():
                                 show_cutoff=False,
                                 cutoff_value=30.0,
                                 show_frontier=False,
+                                run_labels=comparison_labels,
                             )
                             st.plotly_chart(
                                 pareto_comparison_fig, width="stretch", key="comparison_pareto"

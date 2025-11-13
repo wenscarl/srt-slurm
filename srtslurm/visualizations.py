@@ -503,6 +503,7 @@ def create_pareto_graph(
     cutoff_value: float = 30.0,
     show_frontier: bool = False,
     y_metric: str = "Output TPS/GPU",
+    run_labels: dict[str, str] | None = None,
 ) -> go.Figure:
     """Create interactive Pareto graph with optional cutoff line and frontier.
 
@@ -514,6 +515,7 @@ def create_pareto_graph(
         show_frontier: Whether to show the Pareto frontier
         y_metric: Y-axis metric to plot ("Output TPS/GPU" or "Total TPS/GPU")
                  Both metrics are normalized per GPU
+        run_labels: Optional dict mapping run_id to display label for legend
     """
     fig = go.Figure()
 
@@ -631,12 +633,19 @@ def create_pareto_graph(
             tps_label = "Output TPS"
             tps_column = "Output TPS"
 
+        # Use custom label if provided, otherwise extract job number from run_id
+        if run_labels and run_id in run_labels:
+            legend_name = run_labels[run_id]
+        else:
+            job_num = run_id.split("_")[0] if "_" in run_id else run_id
+            legend_name = f"Job {job_num}"
+
         fig.add_trace(
             go.Scatter(
                 x=run_data["Output TPS/User"],
                 y=run_data[y_metric],
                 mode="markers+lines",
-                name=f"Run {run_id}",
+                name=legend_name,
                 marker={"size": 10, "color": colors[idx % len(colors)]},
                 line={"color": colors[idx % len(colors)], "width": 2},
                 text=[
