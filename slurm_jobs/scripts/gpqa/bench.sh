@@ -6,6 +6,7 @@
 
 head_node="localhost"
 head_port=8000
+model_name="deepseek-ai/DeepSeek-R1"  # Default model name
 
 # Parse arguments from SLURM job
 n_prefill=$1
@@ -13,7 +14,7 @@ n_decode=$2
 prefill_gpus=$3
 decode_gpus=$4
 num_examples=${5:-198}  # Default: 198
-max_tokens=${6:-4096}   # Default: 4096
+max_tokens=${6:-512}    # Default: 512
 repeat=${7:-8}          # Default: 8
 num_threads=${8:-512}   # Default: 512
 
@@ -41,8 +42,8 @@ fi
 
 # Run the evaluation
 python3 -m sglang.test.run_eval \
-    --host "http://${head_node}" \
-    --port ${head_port} \
+    --base-url "http://${head_node}:${head_port}" \
+    --model ${model_name} \
     --eval-name gpqa \
     --num-examples ${num_examples} \
     --max-tokens ${max_tokens} \

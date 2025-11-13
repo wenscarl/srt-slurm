@@ -466,7 +466,7 @@ def main(input_args: list[str] | None = None):
             assert benchmark_config["max-tokens"].isnumeric()
             parsable_config = f"{parsable_config} {benchmark_config['max-tokens']}"
         else:
-            parsable_config = f"{parsable_config} 4096"  # default
+            parsable_config = f"{parsable_config} 512"  # default
 
         if "repeat" in benchmark_config:
             assert benchmark_config["repeat"].isnumeric()
