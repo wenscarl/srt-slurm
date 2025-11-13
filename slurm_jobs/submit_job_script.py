@@ -141,7 +141,7 @@ def create_job_metadata(
             "use_init_location": args.use_init_location,
             "enable_config_dump": args.enable_config_dump,
             "use_dynamo_whls": args.use_dynamo_whls,
-            "log_dir": args.log_dir if args.log_dir else "repo_root",
+            "log_dir": args.log_dir if args.log_dir else "logs",
         },
         "profiler_metadata": benchmark_config,
     }
@@ -307,7 +307,7 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
         "--log-dir",
         type=str,
         default=None,
-        help="Directory to save logs (default: repo root). Path relative to slurm_jobs/ or absolute.",
+        help="Directory to save logs (default: repo root/logs). Path relative to slurm_jobs/ or absolute.",
     )
 
     return parser.parse_args(args)
@@ -501,8 +501,8 @@ def main(input_args: list[str] | None = None):
                 # Not relative to slurm_jobs, use absolute
                 log_dir_prefix = str(base_log_dir)
     else:
-        # Default: repo root (parent of slurm_jobs/) = "../" from slurm_jobs/
-        log_dir_prefix = ".."
+        # Default: repo root/logs (parent of slurm_jobs/)/logs = "../logs" from slurm_jobs/
+        log_dir_prefix = "../logs"
 
     # Select template based on mode
     if is_aggregated:
@@ -563,15 +563,15 @@ def main(input_args: list[str] | None = None):
         else:
             log_dir_name = f"{job_id}_{prefill_workers}P_{decode_workers}D_{timestamp}"
         
-        # Determine base log directory (default: repo root)
+        # Determine base log directory (default: repo root/logs)
         if args.log_dir:
             base_log_dir = pathlib.Path(args.log_dir)
             if not base_log_dir.is_absolute():
                 # Relative to slurm_jobs directory
                 base_log_dir = pathlib.Path(__file__).parent / base_log_dir
         else:
-            # Default: repo root (parent directory of slurm_jobs/)
-            base_log_dir = pathlib.Path(__file__).parent.parent
+            # Default: repo root/logs (parent directory of slurm_jobs/ + logs)
+            base_log_dir = pathlib.Path(__file__).parent.parent / "logs"
         
         log_dir_path = base_log_dir / log_dir_name
         os.makedirs(log_dir_path, exist_ok=True)

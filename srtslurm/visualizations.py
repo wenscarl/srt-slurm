@@ -482,19 +482,21 @@ def create_latency_vs_concurrency_graph(
     return fig
 
 
-def calculate_pareto_frontier(df: pd.DataFrame) -> list[tuple]:
+def calculate_pareto_frontier(df: pd.DataFrame, y_metric: str = "Output TPS/GPU") -> list[tuple]:
     """Calculate the Pareto frontier points.
 
     A point is on the Pareto frontier if no other point is strictly better
-    in both dimensions (higher TPS/User AND higher TPS/GPU).
+    in both dimensions (higher TPS/User AND higher y_metric).
 
     Args:
-        df: DataFrame with 'Output TPS/User' and 'Output TPS/GPU' columns
+        df: DataFrame with 'Output TPS/User' and y_metric columns
+        y_metric: Y-axis metric to use ("Output TPS/GPU" or "Total TPS/GPU")
+                 Both metrics are normalized per GPU
 
     Returns:
         List of (x, y) tuples representing frontier points, sorted by x
     """
-    points = df[["Output TPS/User", "Output TPS/GPU"]].values.tolist()
+    points = df[["Output TPS/User", y_metric]].values.tolist()
 
     if len(points) == 0:
         return []
@@ -528,6 +530,8 @@ def create_pareto_graph(
     show_cutoff: bool = False,
     cutoff_value: float = 30.0,
     show_frontier: bool = False,
+    y_metric: str = "Output TPS/GPU",
+    run_labels: dict[str, str] | None = None,
 ) -> go.Figure:
     """Create interactive Pareto graph with optional cutoff line and frontier.
 
@@ -537,12 +541,15 @@ def create_pareto_graph(
         show_cutoff: Whether to show vertical cutoff line
         cutoff_value: X-axis value for cutoff line (TPS/User)
         show_frontier: Whether to show the Pareto frontier
+        y_metric: Y-axis metric to plot ("Output TPS/GPU" or "Total TPS/GPU")
+                 Both metrics are normalized per GPU
+        run_labels: Optional dict mapping run_id to display label for legend
     """
     fig = go.Figure()
 
     # Add Pareto frontier FIRST if enabled (so it appears behind data points)
     if show_frontier and len(df) > 0:
-        frontier_points = calculate_pareto_frontier(df)
+        frontier_points = calculate_pareto_frontier(df, y_metric)
 
         if len(frontier_points) > 1:
             frontier_x = [p[0] for p in frontier_points]
@@ -646,20 +653,35 @@ def create_pareto_graph(
     for idx, run_id in enumerate(selected_runs):
         run_data = df[df["Run ID"] == run_id]
 
+        # Choose which throughput to show based on y_metric
+        if y_metric == "Total TPS/GPU":
+            tps_label = "Total TPS"
+            tps_column = "Total TPS"
+        else:
+            tps_label = "Output TPS"
+            tps_column = "Output TPS"
+
+        # Use custom label if provided, otherwise extract job number from run_id
+        if run_labels and run_id in run_labels:
+            legend_name = run_labels[run_id]
+        else:
+            job_num = run_id.split("_")[0] if "_" in run_id else run_id
+            legend_name = f"Job {job_num}"
+
         fig.add_trace(
             go.Scatter(
                 x=run_data["Output TPS/User"],
-                y=run_data["Output TPS/GPU"],
+                y=run_data[y_metric],
                 mode="markers+lines",
-                name=f"Run {run_id}",
+                name=legend_name,
                 marker={"size": 10, "color": colors[idx % len(colors)]},
                 line={"color": colors[idx % len(colors)], "width": 2},
                 text=[
                     f"Run: {row['Run ID']}<br>"
                     f"Concurrency: {row['Concurrency']}<br>"
                     f"Output TPS/User: {row['Output TPS/User']:.2f}<br>"
-                    f"Output TPS/GPU: {row['Output TPS/GPU']:.2f}<br>"
-                    f"Output TPS: {row['Output TPS']:.2f}<br>"
+                    f"{y_metric}: {row[y_metric]:.2f}<br>"
+                    f"{tps_label}: {row[tps_column]:.2f}<br>"
                     f"Mean TTFT: {row['Mean TTFT (ms)']:.2f} ms<br>"
                     f"Mean TPOT: {row['Mean TPOT (ms)']:.2f} ms"
                     for _, row in run_data.iterrows()
@@ -681,15 +703,23 @@ def create_pareto_graph(
             annotation_font_color="red",
         )
 
+    # Determine title and axis labels based on y_metric
+    if y_metric == "Total TPS/GPU":
+        title_text = "Pareto Frontier: Total TPS/GPU vs Output TPS/User"
+        y_axis_title = "Total TPS/GPU"
+    else:
+        title_text = "Pareto Frontier: Output TPS/GPU vs Output TPS/User"
+        y_axis_title = "Output TPS/GPU"
+
     fig.update_layout(
         title={
-            "text": "Pareto Frontier: Output TPS/GPU vs Output TPS/User",
+            "text": title_text,
             "x": 0.5,
             "xanchor": "center",
             "font": {"size": 20},
         },
         xaxis_title="Output TPS/User",
-        yaxis_title="Output TPS/GPU",
+        yaxis_title=y_axis_title,
         hovermode="closest",
         legend={"yanchor": "top", "y": 0.99, "xanchor": "right", "x": 0.99},
         height=600,
