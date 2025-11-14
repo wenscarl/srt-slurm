@@ -26,7 +26,10 @@ setup:
 	esac; \
 	echo "⬇️  Downloading Python wheels..."; \
 	wget -q --show-progress -P configs https://files.pythonhosted.org/packages/dc/b7/62fb0edaeae0943731d0e1d3e1455b0a8a94ef448aa5bd8ffe33288ab464/ai_dynamo-0.6.1-py3-none-any.whl; \
+	echo "⬇️  Downloading ai_dynamo_runtime for aarch64 (GB200)..."; \
 	wget -q --show-progress -P configs https://files.pythonhosted.org/packages/b8/0c/076268db6ff2c87663a0d70f7ce7a6a1c566ac1383981d9c82437de2ff98/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_aarch64.whl; \
+	echo "⬇️  Downloading ai_dynamo_runtime for x86_64 (H100)..."; \
+	wget -q --show-progress -P configs https://files.pythonhosted.org/packages/99/fc/cd7172407aeb07fc83fa94eb51281280847e5ec7fb3c6aedb1a02cf4e7ea/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_x86_64.whl; \
 	echo "⬇️  Downloading NATS ($(NATS_VERSION)) for $$ARCH_SHORT..."; \
 	NATS_DEB="nats-server-$(NATS_VERSION)-$$ARCH_SHORT.deb"; \
 	NATS_URL="https://github.com/nats-io/nats-server/releases/download/$(NATS_VERSION)/$$NATS_DEB"; \
@@ -68,6 +71,8 @@ setup:
 		partition=$${partition:-batch}; \
 		read -p "Enter network interface [enP6p9s0np0]: " network; \
 		network=$${network:-enP6p9s0np0}; \
+		read -p "Enter GPUs per node [8]: " gpus_per_node; \
+		gpus_per_node=$${gpus_per_node:-8}; \
 		read -p "Enter time limit [4:00:00]: " time_limit; \
 		time_limit=$${time_limit:-4:00:00}; \
 		read -p "Enter container image path (optional): " container; \
@@ -79,6 +84,7 @@ setup:
 		echo "  account: \"$$account\"" >> srtslurm.yaml; \
 		echo "  partition: \"$$partition\"" >> srtslurm.yaml; \
 		echo "  network_interface: \"$$network\"" >> srtslurm.yaml; \
+		echo "  gpus_per_node: $$gpus_per_node" >> srtslurm.yaml; \
 		echo "  time_limit: \"$$time_limit\"" >> srtslurm.yaml; \
 		echo "  container_image: \"$$container\"" >> srtslurm.yaml; \
 		echo "" >> srtslurm.yaml; \

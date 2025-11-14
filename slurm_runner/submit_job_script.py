@@ -34,7 +34,7 @@ from cluster_config import validate_cluster_settings, get_cluster_setting
 def print_welcome_message(job_ids: list[str], log_dir_name: str):
     """Print a concise welcome message with log directory info."""
     print(
-        f"\nYour logs will be in ../{log_dir_name}. To access them, run:\n\n    cd ../{log_dir_name}\n"
+        f"\nYour logs will be in ../logs/{log_dir_name}. To access them, run:\n\n    cd ../logs/{log_dir_name}\n"
     )
 
 
@@ -215,7 +215,7 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
         "--agg-workers", type=int, default=None, help="Number of aggregated workers"
     )
     parser.add_argument(
-        "--gpus-per-node", type=int, default=8, help="Number of GPUs per node"
+        "--gpus-per-node", type=int, default=None, help="Number of GPUs per node (or set in srtslurm.yaml)"
     )
     parser.add_argument(
         "--network-interface", default=None, help="Network interface (or set in srtslurm.yaml)"
@@ -318,7 +318,15 @@ def _validate_args(args: argparse.Namespace) -> None:
     # Apply time limit default
     if args.time_limit is None:
         args.time_limit = get_cluster_setting("time_limit", None, config_path) or "04:00:00"
-    
+
+    # Apply gpus_per_node from config or require it
+    if args.gpus_per_node is None:
+        args.gpus_per_node = get_cluster_setting("gpus_per_node", None, config_path)
+        if args.gpus_per_node is None:
+            raise ValueError(
+                "Missing required setting: --gpus-per-node (or cluster.gpus_per_node in srtslurm.yaml)"
+            )
+
     has_disagg_args = any(
         [
             args.prefill_nodes is not None,
