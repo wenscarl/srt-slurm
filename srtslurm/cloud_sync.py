@@ -36,7 +36,7 @@ class CloudSyncManager:
             aws_secret_access_key: Secret key (defaults to env var)
         """
         if boto3 is None:
-            raise ImportError("boto3 is required for cloud sync. Install with: pip install boto3")
+            raise ImportError("boto3 is required for cloud sync. Install with: uv add boto3")
 
         self.endpoint_url = endpoint_url
         self.bucket = bucket
@@ -277,7 +277,7 @@ def load_cloud_config(config_path: str = "srtslurm.toml") -> dict | None:
     """Load cloud configuration from TOML file.
 
     Args:
-        config_path: Path to srtslurm.toml (or cloud_config.toml for backward compat)
+        config_path: Path to srtslurm.toml
 
     Returns:
         Dict with cloud config, or None if file doesn't exist
@@ -286,12 +286,7 @@ def load_cloud_config(config_path: str = "srtslurm.toml") -> dict | None:
     
     config_file = Path(config_path)
     if not config_file.exists():
-        # Try old config name for backward compatibility
-        old_path = Path("cloud_config.toml")
-        if old_path.exists():
-            config_file = old_path
-        else:
-            return None
+        return None
 
     try:
         with open(config_file, "rb") as f:

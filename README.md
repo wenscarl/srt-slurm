@@ -4,13 +4,23 @@ Benchmarking toolkit for Dynamo and SGLang on SLURM.
 
 ## Run a benchmark
 
-1. Run `make setup` to download the neccesary dynamo dependencies. This pulls in `nats` and `etcd` and the dynamo pip wheels. This allows you to use any container found on the [lmsys dockerhub](https://hub.docker.com/r/lmsysorg/sglang/tags) and use dynamo orchestration.
+1. **Run `make setup`** - Downloads dynamo dependencies (nats, etcd, wheels) and interactively creates `srtslurm.toml` with your cluster settings:
 
-2. **Create `srtslurm.toml`** with your cluster settings (optional but recommended):
+```bash
+make setup
+```
+
+You'll be prompted for:
+
+- SLURM account (e.g., `restricted`)
+- SLURM partition (e.g., `batch-aqua`)
+- Network interface (e.g., `enP6p9s0np0`)
+- Default time limit (e.g., `4:00:00`)
+
+This creates `srtslurm.toml` automatically. You can also manually copy from the example:
 
 ```bash
 cp srtslurm.toml.example srtslurm.toml
-# Edit with your cluster defaults (account, partition, network_interface, time_limit)
 ```
 
 3. Run your first benchmark (much shorter now!):
@@ -67,15 +77,7 @@ Store benchmark results in cloud storage (S3-compatible) and access them from an
 pip install boto3 tomli
 ```
 
-(Note: `tomli` is only needed for Python < 3.11)
-
-2. **Create cloud config:**
-
-```bash
-cp cloud_config.toml.example cloud_config.toml
-```
-
-3. **Edit `cloud_config.toml`:**
+2. **Edit `srtslurm.toml`** to add cloud storage settings:
 
 ```toml
 [cloud]
@@ -84,7 +86,7 @@ bucket = "your-bucket-name"
 prefix = "benchmark-results/"
 ```
 
-4. **Set credentials as environment variables:**
+3. **Set credentials as environment variables:**
 
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
@@ -125,8 +127,8 @@ In the dashboard sidebar:
 Or pull manually:
 
 ```bash
-python slurm_runner/scripts/sync_results.py pull-missing
-python slurm_runner/scripts/sync_results.py list-remote
+uv run python slurm_runner/scripts/sync_results.py pull-missing
+uv run python slurm_runner/scripts/sync_results.py list-remote
 ```
 
 ## What It Does

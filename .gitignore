@@ -32,8 +32,8 @@ uv.lock
 .DS_Store
 Thumbs.db
 
-# Cloud config (contains credentials)
-cloud_config.toml
+# Cluster and cloud config (contains credentials and cluster-specific settings)
+srtslurm.toml
 
 # Configs - ignore downloaded files but keep deepep_config.json
 configs/nats-server

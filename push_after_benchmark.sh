@@ -43,7 +43,7 @@ if [ $# -eq 0 ]; then
     fi
     
     echo "Pushing all runs from $LOGS_DIR to cloud storage (skipping existing)..."
-    python3 "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
+    uv run python "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
 
 elif [ "$1" = "--log-dir" ]; then
     # Push all runs from specified logs directory
@@ -60,7 +60,7 @@ elif [ "$1" = "--log-dir" ]; then
     fi
     
     echo "Pushing all runs from $LOGS_DIR to cloud storage (skipping existing)..."
-    python3 "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
+    uv run python "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
     
 else
     # Push single run directory
@@ -72,7 +72,7 @@ else
     fi
     
     echo "Pushing $RUN_DIR to cloud storage..."
-    python3 "$SYNC_SCRIPT" push "$RUN_DIR"
+    uv run python "$SYNC_SCRIPT" push "$RUN_DIR"
 fi
 
 if [ $? -eq 0 ]; then
