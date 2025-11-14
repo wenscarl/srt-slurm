@@ -319,9 +319,13 @@ def _validate_args(args: argparse.Namespace) -> None:
     if args.time_limit is None:
         args.time_limit = get_cluster_setting("time_limit", None, config_path) or "04:00:00"
 
-    # Apply gpus_per_node default
+    # Apply gpus_per_node from config or require it
     if args.gpus_per_node is None:
-        args.gpus_per_node = get_cluster_setting("gpus_per_node", None, config_path) or 8
+        args.gpus_per_node = get_cluster_setting("gpus_per_node", None, config_path)
+        if args.gpus_per_node is None:
+            raise ValueError(
+                "Missing required setting: --gpus-per-node (or cluster.gpus_per_node in srtslurm.yaml)"
+            )
 
     has_disagg_args = any(
         [
