@@ -185,7 +185,7 @@ class CloudSyncManager:
                     progress_callback(len(files_to_download) + skipped, len(remote_files), rel_path, "skipped")
                 logger.debug(f"Skipped {rel_path} (already exists locally)")
                 continue
-                
+
             files_to_download.append(rel_path)
 
         if not files_to_download and skipped > 0:
