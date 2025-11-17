@@ -290,6 +290,8 @@ def setup_env_vars_for_gpu_script(
     os.environ["USE_INIT_LOCATIONS"] = str(use_init_locations)
     os.environ["USE_DYNAMO_WHLS"] = str(use_dynamo_whls)
     os.environ["USE_SGLANG_LAUNCH_SERVER"] = str(sglang_torch_profiler)
+    if sglang_torch_profiler:
+        os.environ["SGLANG_TORCH_PROFILER_DIR"] = "/logs/profiles"
     if dump_config_path:
         os.environ["DUMP_CONFIG_PATH"] = dump_config_path
     else:
@@ -303,6 +305,8 @@ def setup_env_vars_for_gpu_script(
     logging.info(f"Set USE_INIT_LOCATIONS: {use_init_locations}")
     logging.info(f"Set USE_DYNAMO_WHLS: {use_dynamo_whls}")
     logging.info(f"Set USE_SGLANG_LAUNCH_SERVER: {sglang_torch_profiler}")
+    if sglang_torch_profiler:
+        logging.info(f"Set SGLANG_TORCH_PROFILER_DIR: /logs/profiles")
     if dump_config_path:
         logging.info(f"Set DUMP_CONFIG_PATH: {dump_config_path}")
 
