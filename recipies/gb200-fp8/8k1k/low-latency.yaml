@@ -11,7 +11,7 @@ resources:
   decode_nodes: 1
   prefill_workers: 1
   decode_workers: 1
-  gpus_per_node: 1
+  gpus_per_node: 4
 
 backend:
   prefill_environment:
