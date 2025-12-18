@@ -185,6 +185,52 @@ def setup_decode_worker(
     return run_command(cmd_to_run)
 
 
+def setup_router_worker(
+    router_idx: int,
+    prefill_ips: list[str],
+    decode_ips: list[str],
+    host: str = "0.0.0.0",
+    port: int = 8000,
+    server_port: int = 30000,
+    bootstrap_port: int = 30001,
+) -> int:
+    """Setup an sglang router worker for PD disaggregation.
+
+    Args:
+        router_idx: Index of this router instance (for logging)
+        prefill_ips: List of prefill worker leader IPs
+        decode_ips: List of decode worker leader IPs
+        host: Host to bind the router to
+        port: Port to bind the router to
+        server_port: Port where prefill/decode servers listen (default: 30000)
+        bootstrap_port: Disaggregation bootstrap port for prefill servers (default: 30001)
+
+    Returns:
+        Exit code from the router process
+    """
+    logging.info(f"Setting up sglang router {router_idx}")
+    logging.info(f"  Prefill IPs: {prefill_ips}")
+    logging.info(f"  Decode IPs: {decode_ips}")
+    logging.info(f"  Server port: {server_port}, Bootstrap port: {bootstrap_port}")
+
+    # Build router command
+    router_args = ["python", "-m", "sglang_router.launch_router", "--pd-disaggregation"]
+
+    # Prefill servers need: --prefill http://IP:server_port bootstrap_port
+    for ip in prefill_ips:
+        router_args.extend(["--prefill", f"http://{ip}:{server_port}", str(bootstrap_port)])
+
+    # Decode servers just need: --decode http://IP:server_port
+    for ip in decode_ips:
+        router_args.extend(["--decode", f"http://{ip}:{server_port}"])
+
+    router_args.extend(["--host", host, "--port", str(port)])
+
+    cmd = " ".join(router_args)
+    logging.info(f"Router command: {cmd}")
+    return run_command(cmd)
+
+
 def setup_aggregated_worker(
     worker_idx: int,
     local_rank: int,
