@@ -344,7 +344,7 @@ echo "srun $ENROOT_ARGS --jobid $SLURM_JOB_ID -w ${nodes[0]} --overlap --pty bas
 echo "Waiting for prefill server to be ready on ${nodes[${prefill_leaders[0]}]}..."
 PREFILL_LEADER_NODE=${nodes[${prefill_leaders[0]}]}
 PREFILL_LEADER_IP=$(get_node_ip "$PREFILL_LEADER_NODE" "$SLURM_JOB_ID" "$NETWORK_INTERFACE")
-MAX_WAIT=300
+MAX_WAIT=600
 WAIT_COUNT=0
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     status_code=$(srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w $PREFILL_LEADER_NODE --overlap bash -c "curl -s -o /dev/null -w '%{http_code}' http://${PREFILL_LEADER_IP}:30000/health" 2>/dev/null || echo "000")
@@ -353,8 +353,8 @@ while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
         break
     fi
     echo "Prefill server not ready yet (status: ${status_code}), waiting... ($WAIT_COUNT/$MAX_WAIT)"
-    sleep 10
-    WAIT_COUNT=$((WAIT_COUNT + 10))
+    sleep 30
+    WAIT_COUNT=$((WAIT_COUNT + 30))
 done
 
 if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
