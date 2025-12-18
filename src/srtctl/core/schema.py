@@ -173,17 +173,27 @@ class ProfilingType(str, Enum):
     NONE = "none"
 
 
+class ProfilingPhaseConfig(BaseModel):
+    """Per-phase profiling parameters."""
+
+    start_step: Optional[int] = Field(None, description="Profiling start step")
+    stop_step: Optional[int] = Field(None, description="Profiling stop step")
+
+
 class ProfilingConfig(BaseModel):
     """Profiling configuration."""
 
     type: ProfilingType = Field(ProfilingType.NONE, description="Profiling type")
-    # Unified profiling spec (used for both prefill and decode in PD
-    # disaggregation mode, or for aggregated mode).
+    # Shared profiling parameters (used for both prefill and decode)
     isl: Optional[int] = Field(None, description="Input sequence length")
     osl: Optional[int] = Field(None, description="Output sequence length")
     concurrency: Optional[int] = Field(None, description="Batch size / concurrency")
-    start_step: Optional[int] = Field(None, description="Profiling start step")
-    stop_step: Optional[int] = Field(None, description="Profiling stop step")
+    # Per-phase profiling parameters
+    prefill: Optional[ProfilingPhaseConfig] = Field(None, description="Prefill phase profiling config")
+    decode: Optional[ProfilingPhaseConfig] = Field(None, description="Decode phase profiling config")
+    # Legacy fields for backward compatibility (deprecated)
+    start_step: Optional[int] = Field(None, description="Profiling start step (legacy, use prefill/decode instead)")
+    stop_step: Optional[int] = Field(None, description="Profiling stop step (legacy, use prefill/decode instead)")
 
 
 class SGLangPrefillConfig(BaseModel):
@@ -318,15 +328,17 @@ class JobConfig(BaseModel):
 
         if is_disaggregated:
             if self.resources.prefill_workers and self.resources.prefill_workers > 1:
-                raise ValueError(
-                    f"Profiling mode requires single worker only. "
-                    f"Got prefill_workers={self.resources.prefill_workers}"
-                )
+                pass
+#                raise ValueError(
+#                    f"Profiling mode requires single worker only. "
+#                    f"Got prefill_workers={self.resources.prefill_workers}"
+#                )
             if self.resources.decode_workers and self.resources.decode_workers > 1:
-                raise ValueError(
-                    f"Profiling mode requires single worker only. "
-                    f"Got decode_workers={self.resources.decode_workers}"
-                )
+                pass
+#                raise ValueError(
+#                    f"Profiling mode requires single worker only. "
+#                    f"Got decode_workers={self.resources.decode_workers}"
+#                )
         else:
             # Aggregated mode
             if self.resources.agg_workers and self.resources.agg_workers > 1:

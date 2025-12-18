@@ -10,6 +10,7 @@ import subprocess
 
 def build_sglang_command_from_yaml(
     worker_type: str,
+    worker_idx: int,
     sglang_config_path: str,
     host_ip: str,
     port: int,
@@ -59,7 +60,7 @@ def build_sglang_command_from_yaml(
 
     # Determine Python module based on profiling mode
     python_module = "sglang.launch_server" if profiler != "none" else "dynamo.sglang"
-    nsys_prefix = f"nsys profile -t cuda,nvtx --cuda-graph-trace=node -c cudaProfilerApi --capture-range-end stop --force-overwrite true -o /logs/profiles/{config_key}_{rank}"
+    nsys_prefix = f"nsys profile -t cuda,nvtx --cuda-graph-trace=node -c cudaProfilerApi --capture-range-end stop --force-overwrite true -o /logs/profiles/{config_key}_{worker_idx}_{rank}"
 
     if profiler != "none":
         # Profiling mode: inline all flags (sglang.launch_server doesn't support --config)
@@ -142,6 +143,7 @@ def install_dynamo_wheels(gpu_type: str) -> None:
 
 def get_gpu_command(
     worker_type: str,
+    worker_idx: int,
     sglang_config_path: str,
     host_ip: str,
     port: int,
@@ -169,5 +171,5 @@ def get_gpu_command(
 
     logging.info(f"Building command from YAML config: {sglang_config_path}")
     return build_sglang_command_from_yaml(
-        worker_type, sglang_config_path, host_ip, port, total_nodes, rank, profiler, dump_config_path
+        worker_type, worker_idx, sglang_config_path, host_ip, port, total_nodes, rank, profiler, dump_config_path
     )

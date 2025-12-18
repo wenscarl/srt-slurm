@@ -282,24 +282,46 @@ class SGLangBackend(Backend):
         # Build profiling env injections 
         profiling_cfg = self.config.get("profiling") or {}
 
-        def build_env_str(cfg: dict) -> str:
+        def build_env_str(phase_cfg: dict, shared_cfg: dict) -> str:
+            """Build environment string from phase-specific and shared config.
+            
+            Args:
+                phase_cfg: Phase-specific config (prefill or decode) with start_step/stop_step
+                shared_cfg: Shared config with isl/osl/concurrency
+            """
             parts: list[str] = []
-            if "isl" in cfg and cfg["isl"] is not None:
-                parts.append(f"PROFILE_ISL={cfg['isl']}")
-            if "osl" in cfg and cfg["osl"] is not None:
-                parts.append(f"PROFILE_OSL={cfg['osl']}")
-            if "concurrency" in cfg and cfg["concurrency"] is not None:
-                parts.append(f"PROFILE_CONCURRENCY={cfg['concurrency']}")
-            if "start_step" in cfg and cfg["start_step"] is not None:
-                parts.append(f"PROFILE_START_STEP={cfg['start_step']}")
-            if "stop_step" in cfg and cfg["stop_step"] is not None:
-                parts.append(f"PROFILE_STOP_STEP={cfg['stop_step']}")
+            # Shared parameters
+            if "isl" in shared_cfg and shared_cfg["isl"] is not None:
+                parts.append(f"PROFILE_ISL={shared_cfg['isl']}")
+            if "osl" in shared_cfg and shared_cfg["osl"] is not None:
+                parts.append(f"PROFILE_OSL={shared_cfg['osl']}")
+            if "concurrency" in shared_cfg and shared_cfg["concurrency"] is not None:
+                parts.append(f"PROFILE_CONCURRENCY={shared_cfg['concurrency']}")
+            # Phase-specific parameters
+            if "start_step" in phase_cfg and phase_cfg["start_step"] is not None:
+                parts.append(f"PROFILE_START_STEP={phase_cfg['start_step']}")
+            if "stop_step" in phase_cfg and phase_cfg["stop_step"] is not None:
+                parts.append(f"PROFILE_STOP_STEP={phase_cfg['stop_step']}")
             return " ".join(parts)
 
-        # Use the same profiling spec for both prefill and decode; in PD
-        # disaggregation mode this single spec drives both sides.
-        prefill_profile_env = build_env_str(profiling_cfg)
-        decode_profile_env = build_env_str(profiling_cfg)
+        # Support both new structure (with separate prefill/decode) and legacy structure
+        prefill_phase_cfg = profiling_cfg.get("prefill") or {}
+        decode_phase_cfg = profiling_cfg.get("decode") or {}
+        
+        # For backward compatibility: if prefill/decode not specified, use legacy start_step/stop_step
+        if not prefill_phase_cfg and "start_step" in profiling_cfg:
+            prefill_phase_cfg = {
+                "start_step": profiling_cfg.get("start_step"),
+                "stop_step": profiling_cfg.get("stop_step")
+            }
+        if not decode_phase_cfg and "start_step" in profiling_cfg:
+            decode_phase_cfg = {
+                "start_step": profiling_cfg.get("start_step"),
+                "stop_step": profiling_cfg.get("stop_step")
+            }
+        
+        prefill_profile_env = build_env_str(prefill_phase_cfg, profiling_cfg)
+        decode_profile_env = build_env_str(decode_phase_cfg, profiling_cfg)
 
         profiler_mode = profiling_cfg.get("type") or "none"
         # Template variables
