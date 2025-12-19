@@ -6,6 +6,8 @@ Core modules for srtctl.
 
 This package contains:
 - config: Configuration loading and validation
+- schema: Frozen dataclass schemas (SrtConfig, etc.)
+- formatting: FormattablePath and FormattableString for deferred expansion
 - runtime: RuntimeContext for computed paths and values
 - endpoints: Endpoint and Process dataclasses
 - process_registry: Process lifecycle management
@@ -13,6 +15,19 @@ This package contains:
 """
 
 from .config import load_config, get_srtslurm_setting
+from .schema import (
+    SrtConfig,
+    ResourceConfig,
+    BenchmarkConfig,
+    FrontendConfig,
+    ProfilingConfig,
+    ModelConfig,
+    SlurmConfig,
+    OutputConfig,
+    HealthCheckConfig,
+    ClusterConfig,
+)
+from .formatting import FormattablePath, FormattableString
 from .endpoints import Endpoint, Process, allocate_endpoints, endpoints_to_processes
 from .process_registry import (
     ManagedProcess,
@@ -23,10 +38,43 @@ from .process_registry import (
 )
 from .runtime import Nodes, RuntimeContext, get_slurm_job_id, get_hostname_ip
 
+# Re-export backend configs from their new location
+from srtctl.backends.configs import (
+    SGLangBackendConfig,
+    SGLangConfig,
+    VLLMBackendConfig,
+    TRTLLMBackendConfig,
+    BackendConfig,
+    BackendProtocol,
+    BackendType,
+)
+
 __all__ = [
-    # Config
+    # Config loading
     "load_config",
     "get_srtslurm_setting",
+    # Schema types (frozen dataclasses)
+    "SrtConfig",
+    "ResourceConfig",
+    "BenchmarkConfig",
+    "FrontendConfig",
+    "ProfilingConfig",
+    "ModelConfig",
+    "SlurmConfig",
+    "OutputConfig",
+    "HealthCheckConfig",
+    "ClusterConfig",
+    # Backend configs (re-exported from backends.configs)
+    "SGLangBackendConfig",
+    "SGLangConfig",
+    "VLLMBackendConfig",
+    "TRTLLMBackendConfig",
+    "BackendConfig",
+    "BackendProtocol",
+    "BackendType",
+    # Formatting
+    "FormattablePath",
+    "FormattableString",
     # Runtime
     "Nodes",
     "RuntimeContext",
@@ -44,4 +92,3 @@ __all__ = [
     "setup_signal_handlers",
     "start_process_monitor",
 ]
-

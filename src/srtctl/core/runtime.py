@@ -8,14 +8,16 @@ This module provides the single source of truth for all runtime values,
 replacing scattered bash variables and Jinja templating with typed Python.
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Sequence
 import os
 import socket
+import subprocess
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from .schema import JobConfig
+    from srtctl.core.schema import SrtConfig
 
 
 @dataclass(frozen=True)
@@ -97,10 +99,13 @@ class RuntimeContext:
     # Additional srun options
     srun_options: Dict[str, str] = field(default_factory=dict)
 
+    # Environment variables
+    environment: Dict[str, str] = field(default_factory=dict)
+
     @classmethod
     def from_config(
         cls,
-        config: "JobConfig",
+        config: "SrtConfig",
         job_id: str,
         log_dir_base: Optional[Path] = None,
     ) -> "RuntimeContext":
@@ -109,9 +114,9 @@ class RuntimeContext:
         All path computation happens here, once at startup.
 
         Args:
-            config: Validated JobConfig
+            config: Validated SrtConfig (frozen dataclass)
             job_id: SLURM job ID
-            log_dir_base: Base directory for logs (default: ./logs)
+            log_dir_base: Base directory for logs (default: ./outputs)
         """
         # Get nodes from SLURM
         nodes = Nodes.from_slurm(benchmark_on_separate_node=False)
@@ -122,35 +127,35 @@ class RuntimeContext:
         # Resolve head node IP
         head_node_ip = get_hostname_ip(nodes.head)
 
-        # Compute log directory
-        # Format: {log_dir_base}/{job_id}_{prefill_workers}P_{decode_workers}D_{timestamp}
+        # Compute log directory using FormattablePath or default logic
         if log_dir_base is None:
-            log_dir_base = Path.cwd() / "logs"
+            log_dir_base = Path.cwd() / "outputs"
 
         # Determine worker counts for directory naming
-        if config.resources.prefill_workers:
-            prefill_workers = config.resources.prefill_workers
-            decode_workers = config.resources.decode_workers or 1
+        if config.resources.is_disaggregated:
+            prefill_workers = config.resources.num_prefill or 1
+            decode_workers = config.resources.num_decode or 1
             dir_suffix = f"{prefill_workers}P_{decode_workers}D"
-        elif config.resources.agg_workers:
-            dir_suffix = f"{config.resources.agg_workers}A"
+        elif config.resources.num_agg:
+            dir_suffix = f"{config.resources.num_agg}A"
         else:
             dir_suffix = "1P_1D"
 
-        from datetime import datetime
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = log_dir_base / f"{job_id}_{dir_suffix}_{timestamp}"
+
+        # Check if config.output.log_dir is a FormattablePath with custom template
+        # For now, use default directory structure
+        log_dir = log_dir_base / job_id / f"{dir_suffix}_{timestamp}"
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Results dir inside log_dir
         results_dir = log_dir / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
 
-        # Resolve model path
+        # Resolve model path (expand env vars)
         model_path = Path(os.path.expandvars(config.model.path)).resolve()
 
-        # Resolve container image
+        # Resolve container image (expand env vars)
         container_image = Path(os.path.expandvars(config.model.container)).resolve()
 
         # Build container mounts
@@ -166,10 +171,32 @@ class RuntimeContext:
                 host_path, container_path = mount_spec.split(":", 1)
                 container_mounts[Path(host_path).resolve()] = Path(container_path)
 
-        # Get network interface from cluster config
-        from .config import get_srtslurm_setting
+        # Add FormattablePath mounts from config.container_mounts
+        # These need to be expanded with the runtime context, so we create a
+        # temporary context first and then update
+        temp_context = cls(
+            job_id=job_id,
+            run_name=run_name,
+            nodes=nodes,
+            head_node_ip=head_node_ip,
+            log_dir=log_dir,
+            results_dir=results_dir,
+            model_path=model_path,
+            container_image=container_image,
+            gpus_per_node=config.resources.gpus_per_node,
+            network_interface=get_srtslurm_setting("network_interface", "eth0"),
+            container_mounts={},
+            srun_options=dict(config.srun_options),
+            environment=dict(config.environment),
+        )
 
-        network_interface = get_srtslurm_setting("network_interface", "eth0")
+        # Expand FormattablePath mounts
+        for host_template, container_template in config.container_mounts.items():
+            host_path = host_template.get_path(temp_context, ensure_exists=False)
+            container_path = container_template.get_path(
+                temp_context, make_absolute=False, ensure_exists=False
+            )
+            container_mounts[host_path] = container_path
 
         return cls(
             job_id=job_id,
@@ -181,9 +208,10 @@ class RuntimeContext:
             model_path=model_path,
             container_image=container_image,
             gpus_per_node=config.resources.gpus_per_node,
-            network_interface=network_interface,
+            network_interface=get_srtslurm_setting("network_interface", "eth0"),
             container_mounts=container_mounts,
-            srun_options={},
+            srun_options=dict(config.srun_options),
+            environment=dict(config.environment),
         )
 
     def get_container_mounts_str(self) -> str:
@@ -208,11 +236,25 @@ class RuntimeContext:
             "results_dir": str(self.results_dir),
             "model_path": str(self.model_path),
             "container_image": str(self.container_image),
+            "gpus_per_node": self.gpus_per_node,
         }
         format_dict.update(extra_kwargs)
 
-        formatted = template.format(**format_dict)
+        try:
+            formatted = template.format(**format_dict)
+        except KeyError as e:
+            missing_key = str(e).strip("'\"")
+            available_keys = sorted(set(format_dict.keys()))
+            raise KeyError(
+                f"Missing placeholder '{missing_key}' in template. "
+                f"Available placeholders: {', '.join(available_keys)}."
+            ) from e
         return os.path.expandvars(formatted)
+
+
+# ============================================================================
+# Utility Functions
+# ============================================================================
 
 
 def get_slurm_job_id() -> Optional[str]:
@@ -220,14 +262,12 @@ def get_slurm_job_id() -> Optional[str]:
     return os.environ.get("SLURM_JOB_ID") or os.environ.get("SLURM_JOBID")
 
 
-def get_slurm_nodelist() -> list[str]:
+def get_slurm_nodelist() -> List[str]:
     """Get list of nodes from SLURM_NODELIST environment variable.
 
     Returns:
         List of node hostnames, or empty list if not in SLURM.
     """
-    import subprocess
-
     nodelist_raw = os.environ.get("SLURM_NODELIST", "")
     if not nodelist_raw:
         return []
@@ -264,3 +304,12 @@ def get_hostname_ip(hostname: str, network_interface: Optional[str] = None) -> s
         # Fallback: return hostname as-is (may be IP already)
         return hostname
 
+
+def get_srtslurm_setting(key: str, default=None):
+    """Get a setting from srtslurm.yaml cluster config.
+
+    Wrapper to avoid circular imports.
+    """
+    from srtctl.core.config import get_srtslurm_setting as _get_setting
+
+    return _get_setting(key, default)

@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Base types and protocols for backend configurations.
+"""
+
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Sequence
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from srtctl.core.endpoints import Endpoint, Process
+    from srtctl.core.process_registry import NamedProcesses
+    from srtctl.core.runtime import RuntimeContext
+
+
+class BackendType(str, Enum):
+    """Supported backend types."""
+
+    SGLANG = "sglang"
+    VLLM = "vllm"
+    TRTLLM = "trtllm"
+
+
+class BackendProtocol(Protocol):
+    """Protocol that all backend configurations must implement.
+
+    This allows frozen dataclasses to act as backends by implementing these methods.
+    Each backend is responsible for:
+    1. Allocating logical endpoints (serving units)
+    2. Converting endpoints to physical processes
+    3. Building commands to start those processes
+    """
+
+    @property
+    def type(self) -> str:
+        """Backend type identifier."""
+        ...
+
+    def get_config_for_mode(self, mode: str) -> Dict[str, Any]:
+        """Get config dict for a worker mode (prefill/decode/agg)."""
+        ...
+
+    def get_environment_for_mode(self, mode: str) -> Dict[str, str]:
+        """Get environment variables for a worker mode."""
+        ...
+
+    def allocate_endpoints(
+        self,
+        num_prefill: int,
+        num_decode: int,
+        num_agg: int,
+        gpus_per_prefill: int,
+        gpus_per_decode: int,
+        gpus_per_agg: int,
+        gpus_per_node: int,
+        available_nodes: Sequence[str],
+    ) -> List["Endpoint"]:
+        """Allocate logical endpoints based on resource requirements."""
+        ...
+
+    def endpoints_to_processes(
+        self,
+        endpoints: List["Endpoint"],
+        base_port: int = 8081,
+    ) -> List["Process"]:
+        """Convert logical endpoints to physical processes."""
+        ...
+
+    def build_worker_command(
+        self,
+        process: "Process",
+        endpoint_processes: List["Process"],
+        runtime: "RuntimeContext",
+        use_sglang_router: bool = False,
+        dump_config_path: Optional["Path"] = None,
+    ) -> List[str]:
+        """Build command to start a worker process."""
+        ...
+

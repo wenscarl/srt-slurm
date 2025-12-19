@@ -1,34 +1,31 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Protocol definition for backend implementations.
+"""Protocol definition for backend implementations."""
 
-This module defines the interface that all backend configurations must implement.
-Each backend is responsible for:
-1. Allocating logical endpoints (serving units)
-2. Converting endpoints to physical processes
-3. Starting and managing those processes
-"""
+from typing import TYPE_CHECKING, Dict, List, Protocol, Sequence
 
-from typing import Dict, List, Protocol, Sequence
-
-from srtctl.core.endpoints import Endpoint, Process
-from srtctl.core.process_registry import NamedProcesses
-from srtctl.core.runtime import RuntimeContext
+if TYPE_CHECKING:
+    from srtctl.core.endpoints import Endpoint, Process
+    from srtctl.core.process_registry import NamedProcesses
+    from srtctl.core.runtime import RuntimeContext
 
 
 class BackendProtocol(Protocol):
     """Protocol that all backend configurations must implement.
 
-    This allows different serving frameworks (SGLang, vLLM, TRT-LLM) to be
-    used interchangeably while providing backend-specific process launching.
+    This allows frozen dataclasses to act as backends by implementing these methods.
+    Each backend is responsible for:
+    1. Allocating logical endpoints (serving units)
+    2. Converting endpoints to physical processes
+    3. Starting and managing those processes
 
-    Example usage:
-        backend = SGLangBackend(config)
-        endpoints = backend.allocate_endpoints(common, nodes)
-        processes = backend.endpoints_to_processes(endpoints)
-        running = backend.start_processes(processes, runtime)
+    Backends currently supported:
+    - SGLang: 1 process per node (ntasks = number of nodes in endpoint)
+
+    Future backends:
+    - TRT-LLM: 1 process per GPU (ntasks = total GPUs in endpoint)
+    - vLLM: 1 process per GPU (ntasks = total GPUs in endpoint)
     """
 
     def allocate_endpoints(
@@ -41,7 +38,7 @@ class BackendProtocol(Protocol):
         gpus_per_agg: int,
         gpus_per_node: int,
         available_nodes: Sequence[str],
-    ) -> List[Endpoint]:
+    ) -> List["Endpoint"]:
         """Allocate logical endpoints based on backend-specific logic.
 
         Args:
@@ -51,8 +48,8 @@ class BackendProtocol(Protocol):
             gpus_per_prefill: GPUs per prefill worker
             gpus_per_decode: GPUs per decode worker
             gpus_per_agg: GPUs per agg worker
-            gpus_per_node: GPUs per node
-            available_nodes: Tuple of available node hostnames
+            gpus_per_node: GPUs available per node
+            available_nodes: Sequence of available node hostnames
 
         Returns:
             List of Endpoint objects with GPU allocations
@@ -61,15 +58,15 @@ class BackendProtocol(Protocol):
 
     def endpoints_to_processes(
         self,
-        endpoints: List[Endpoint],
+        endpoints: List["Endpoint"],
         base_port: int = 8081,
-    ) -> List[Process]:
+    ) -> List["Process"]:
         """Convert logical endpoints to physical processes.
 
         Backend-specific mapping:
-        - SGLang: 1 process per node (uses all GPUs on node)
-        - vLLM: 1 process per GPU
-        - TRT-LLM: 1 process per GPU
+        - SGLang: 1 process per node (ntasks = number of nodes in endpoint)
+        - TRT-LLM: 1 process per GPU (ntasks = total GPUs in endpoint)
+        - vLLM: 1 process per GPU (ntasks = total GPUs in endpoint)
 
         Args:
             endpoints: List of logical endpoints
@@ -82,23 +79,40 @@ class BackendProtocol(Protocol):
 
     def start_processes(
         self,
-        processes: List[Process],
-        runtime: RuntimeContext,
+        processes: List["Process"],
+        runtime: "RuntimeContext",
         environment: Dict[str, str],
-    ) -> NamedProcesses:
+    ) -> "NamedProcesses":
         """Start all processes for this backend.
-
-        This is the main entry point for launching workers. Each backend
-        implements this differently based on how the serving framework
-        expects to be invoked.
 
         Args:
             processes: List of Process objects to start
             runtime: RuntimeContext with paths and node information
-            environment: Additional environment variables
+            environment: Environment variables from config
 
         Returns:
-            Dict mapping process names to ManagedProcess objects
+            Dictionary mapping process names to ManagedProcess objects
         """
         ...
 
+    def get_config_for_mode(self, mode: str) -> Dict[str, object]:
+        """Get the merged config dict for a worker mode.
+
+        Args:
+            mode: "prefill", "decode", or "agg"
+
+        Returns:
+            Merged config dict (shared_config + mode-specific config)
+        """
+        ...
+
+    def get_environment_for_mode(self, mode: str) -> Dict[str, str]:
+        """Get environment variables for a worker mode.
+
+        Args:
+            mode: "prefill", "decode", or "agg"
+
+        Returns:
+            Dictionary of environment variables
+        """
+        ...

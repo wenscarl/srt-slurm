@@ -4,16 +4,34 @@
 """
 Backend implementations for different LLM serving frameworks.
 
-Currently supported:
-- SGLang (sglang.py)
+Supported backends:
+- SGLang: Full support with prefill/decode disaggregation
+- vLLM: Placeholder for future support
+- TensorRT-LLM: Placeholder for future support
 
-Future:
-- vLLM
-- TensorRT-LLM
+Each backend config is a frozen dataclass that implements BackendProtocol.
 """
 
-from .protocol import BackendProtocol
-from .sglang import SGLangBackend
+from .configs import (
+    BackendConfig,
+    BackendProtocol,
+    BackendType,
+    SGLangBackendConfig,
+    SGLangConfig,
+    TRTLLMBackendConfig,
+    VLLMBackendConfig,
+)
 
-__all__ = ["BackendProtocol", "SGLangBackend"]
-
+__all__ = [
+    # Base types
+    "BackendProtocol",
+    "BackendType",
+    "BackendConfig",
+    # SGLang
+    "SGLangBackendConfig",
+    "SGLangConfig",
+    # vLLM
+    "VLLMBackendConfig",
+    # TRT-LLM
+    "TRTLLMBackendConfig",
+]
