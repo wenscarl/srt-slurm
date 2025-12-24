@@ -154,7 +154,7 @@ class TestEndpointsToProcesses:
             available_nodes=("node0",),
         )
 
-        processes = endpoints_to_processes(endpoints, base_port=8081)
+        processes = endpoints_to_processes(endpoints, base_sys_port=8081)
 
         # SGLang creates one process per node
         assert len(processes) == 2
@@ -162,6 +162,10 @@ class TestEndpointsToProcesses:
         # Check all sys_ports are unique
         ports = [p.sys_port for p in processes]
         assert len(ports) == len(set(ports)), "All processes should have unique sys_ports"
+
+        # Check http_ports are unique per node (both on node0, so should differ)
+        http_ports = [p.http_port for p in processes]
+        assert len(http_ports) == len(set(http_ports)), "Processes on same node should have unique http_ports"
 
     def test_multi_node_process_construction(self):
         """Test process construction for multi-node endpoints."""
@@ -176,13 +180,23 @@ class TestEndpointsToProcesses:
             available_nodes=("node0", "node1"),
         )
 
-        processes = endpoints_to_processes(endpoints, base_port=8081)
+        processes = endpoints_to_processes(endpoints, base_sys_port=8081)
 
         # Multi-node endpoint should create one process per node
         assert len(processes) == 2
         nodes = [p.node for p in processes]
         assert "node0" in nodes
         assert "node1" in nodes
+
+        # Only leader gets http_port, child gets 0
+        leader = [p for p in processes if p.is_leader][0]
+        assert leader.http_port == 30000
+        assert leader.bootstrap_port == 31000  # prefill gets bootstrap port
+
+        child = [p for p in processes if not p.is_leader][0]
+        assert child.http_port == 0
+        # All processes in prefill endpoint share the same bootstrap port
+        assert child.bootstrap_port == leader.bootstrap_port
 
     def test_cuda_visible_devices(self):
         """Test that CUDA_VISIBLE_DEVICES is set correctly for each process."""
@@ -197,7 +211,7 @@ class TestEndpointsToProcesses:
             available_nodes=("node0",),
         )
 
-        processes = endpoints_to_processes(endpoints, base_port=8081)
+        processes = endpoints_to_processes(endpoints, base_sys_port=8081)
 
         # Each process should have correct GPU indices
         for p in processes:

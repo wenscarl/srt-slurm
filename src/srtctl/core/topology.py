@@ -26,6 +26,52 @@ from typing import Literal
 WorkerMode = Literal["prefill", "decode", "agg"]
 
 
+@dataclass
+class NodePortAllocator:
+    """Allocates unique ports per node to avoid conflicts.
+
+    When multiple workers share a node (e.g., 2 decode workers with 4 GPUs each
+    on an 8-GPU node), they need unique ports. This allocator tracks port
+    assignments per node and hands out the next available port.
+
+    Ports allocated:
+        - http_port: HTTP serving port for sglang.launch_server (default: 30000+)
+        - bootstrap_port: P/D coordination port for prefill workers (default: 31000+)
+
+    Example:
+        allocator = NodePortAllocator()
+
+        # Two workers on same node get different ports
+        port1 = allocator.next_http_port("node0")  # 30000
+        port2 = allocator.next_http_port("node0")  # 30001
+
+        # Different node starts fresh
+        port3 = allocator.next_http_port("node1")  # 30000
+    """
+
+    base_http_port: int = 30000
+    base_bootstrap_port: int = 31000
+
+    _http_ports: dict[str, int] = field(default_factory=dict, repr=False)
+    _bootstrap_ports: dict[str, int] = field(default_factory=dict, repr=False)
+
+    def next_http_port(self, node: str) -> int:
+        """Get next available HTTP port for a node."""
+        if node not in self._http_ports:
+            self._http_ports[node] = self.base_http_port
+        port = self._http_ports[node]
+        self._http_ports[node] += 1
+        return port
+
+    def next_bootstrap_port(self, node: str) -> int:
+        """Get next available bootstrap port for a node (prefill only)."""
+        if node not in self._bootstrap_ports:
+            self._bootstrap_ports[node] = self.base_bootstrap_port
+        port = self._bootstrap_ports[node]
+        self._bootstrap_ports[node] += 1
+        return port
+
+
 @dataclass(frozen=True)
 class Endpoint:
     """A logical worker endpoint (serving unit).
@@ -80,6 +126,8 @@ class Process:
         node: The node hostname this process runs on
         gpu_indices: GPU indices visible to this process
         sys_port: DYN_SYSTEM_PORT for this process
+        http_port: HTTP serving port for this process (avoids conflicts on same node)
+        bootstrap_port: P/D coordination port (only for prefill leaders)
         endpoint_mode: The mode of the parent endpoint
         endpoint_index: The index of the parent endpoint
         node_rank: Rank within the endpoint (0 for leader)
@@ -88,9 +136,11 @@ class Process:
     node: str
     gpu_indices: frozenset[int]
     sys_port: int
+    http_port: int
     endpoint_mode: WorkerMode
     endpoint_index: int
     node_rank: int = 0
+    bootstrap_port: int | None = None
 
     @property
     def is_leader(self) -> bool:
@@ -281,35 +331,58 @@ def allocate_endpoints(
 
 def endpoints_to_processes(
     endpoints: list[Endpoint],
-    base_port: int = 8081,
+    base_sys_port: int = 8081,
+    port_allocator: NodePortAllocator | None = None,
 ) -> list[Process]:
     """Convert endpoints to physical processes.
 
     For SGLang, we create one process per node in each endpoint.
-    Each process gets a unique DYN_SYSTEM_PORT.
+    Each process gets a unique DYN_SYSTEM_PORT and ports from the allocator.
+
+    Ports are assigned per-node to avoid conflicts when multiple workers
+    share a node (e.g., 2 decode workers with 4 GPUs each on an 8-GPU node).
 
     Args:
         endpoints: List of Endpoint objects
-        base_port: Starting port for DYN_SYSTEM_PORT assignment
+        base_sys_port: Starting port for DYN_SYSTEM_PORT assignment
+        port_allocator: NodePortAllocator for HTTP/bootstrap ports (created if None)
 
     Returns:
         List of Process objects
     """
     processes: list[Process] = []
-    current_port = base_port
+    current_sys_port = base_sys_port
+
+    if port_allocator is None:
+        port_allocator = NodePortAllocator()
 
     for endpoint in endpoints:
+        # Allocate bootstrap port once per prefill endpoint (shared by all processes)
+        leader_node = endpoint.nodes[0]
+        endpoint_bootstrap_port = (
+            port_allocator.next_bootstrap_port(leader_node)
+            if endpoint.mode == "prefill"
+            else None
+        )
+
         for node_rank, node in enumerate(endpoint.nodes):
+            is_leader = node_rank == 0
+
+            # Only leaders need http_port (for router to connect to)
+            http_port = port_allocator.next_http_port(node) if is_leader else 0
+
             processes.append(
                 Process(
                     node=node,
                     gpu_indices=endpoint.gpu_indices,
-                    sys_port=current_port,
+                    sys_port=current_sys_port,
+                    http_port=http_port,
                     endpoint_mode=endpoint.mode,
                     endpoint_index=endpoint.index,
                     node_rank=node_rank,
+                    bootstrap_port=endpoint_bootstrap_port,
                 )
             )
-            current_port += 1
+            current_sys_port += 1
 
     return processes

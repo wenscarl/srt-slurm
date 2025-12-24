@@ -132,12 +132,12 @@ class SGLangProtocol:
     def endpoints_to_processes(
         self,
         endpoints: list["Endpoint"],
-        base_port: int = 8081,
+        base_sys_port: int = 8081,
     ) -> list["Process"]:
         """Convert endpoints to processes."""
         from srtctl.core.topology import endpoints_to_processes
 
-        return endpoints_to_processes(endpoints, base_port)
+        return endpoints_to_processes(endpoints, base_sys_port=base_sys_port)
 
     def build_worker_command(
         self,
@@ -202,6 +202,11 @@ class SGLangProtocol:
             "--host",
             "0.0.0.0",
         ])
+
+        # Only pass --port when using sglang.launch_server (not dynamo.sglang)
+        # dynamo.sglang uses DYN_SYSTEM_PORT env var instead
+        if use_sglang:
+            cmd.extend(["--port", str(process.http_port)])
 
         # Add disaggregation mode flag (not for agg mode, not when using sglang router)
         if mode != "agg" and not use_sglang_router:

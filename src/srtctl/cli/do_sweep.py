@@ -319,25 +319,26 @@ class SweepOrchestrator:
 
         router_log = self.runtime.log_dir / f"{self.runtime.nodes.head}_router.out"
 
-        # Collect prefill and decode leader IPs
-        prefill_ips = []
-        decode_ips = []
-        for endpoint in self.endpoints:
-            leader_ip = get_hostname_ip(endpoint.leader_node)
-            if endpoint.mode == "prefill":
-                prefill_ips.append(leader_ip)
-            elif endpoint.mode == "decode":
-                decode_ips.append(leader_ip)
+        # Collect prefill and decode leader info from processes
+        prefill_leaders: list[tuple[str, int, int]] = []  # (ip, http_port, bootstrap_port)
+        decode_leaders: list[tuple[str, int]] = []  # (ip, http_port)
+
+        for process in self.processes:
+            if not process.is_leader:
+                continue
+            leader_ip = get_hostname_ip(process.node)
+            if process.endpoint_mode == "prefill":
+                assert process.bootstrap_port is not None
+                prefill_leaders.append((leader_ip, process.http_port, process.bootstrap_port))
+            elif process.endpoint_mode == "decode":
+                decode_leaders.append((leader_ip, process.http_port))
 
         cmd = ["python", "-m", "sglang_router.launch_router", "--pd-disaggregation"]
 
-        server_port = 30000
-        bootstrap_port = 30001
-
-        for ip in prefill_ips:
-            cmd.extend(["--prefill", f"http://{ip}:{server_port}", str(bootstrap_port)])
-        for ip in decode_ips:
-            cmd.extend(["--decode", f"http://{ip}:{server_port}"])
+        for ip, http_port, bootstrap_port in prefill_leaders:
+            cmd.extend(["--prefill", f"http://{ip}:{http_port}", str(bootstrap_port)])
+        for ip, http_port in decode_leaders:
+            cmd.extend(["--decode", f"http://{ip}:{http_port}"])
 
         cmd.extend(["--host", "0.0.0.0", "--port", "8000"])
         cmd.extend(self.config.frontend.get_router_args_list())

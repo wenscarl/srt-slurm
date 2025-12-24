@@ -67,7 +67,13 @@ from .slurm import (
     run_command,
     start_srun_process,
 )
-from .topology import Endpoint, Process, allocate_endpoints, endpoints_to_processes
+from .topology import (
+    Endpoint,
+    NodePortAllocator,
+    Process,
+    allocate_endpoints,
+    endpoints_to_processes,
+)
 
 __all__ = [
     # Config loading
@@ -110,6 +116,7 @@ __all__ = [
     "get_local_ip",
     # Topology (worker allocation)
     "Endpoint",
+    "NodePortAllocator",
     "Process",
     "allocate_endpoints",
     "endpoints_to_processes",
