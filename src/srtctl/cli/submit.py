@@ -39,6 +39,7 @@ def setup_logging(level: int = logging.INFO) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+
 def generate_minimal_sbatch_script(
     config: SrtConfig,
     config_path: Path,
@@ -60,13 +61,10 @@ def generate_minimal_sbatch_script(
     # Find template directory and srtctl source
     # Templates are now in src/srtctl/templates/
     template_dir = Path(__file__).parent.parent / "templates"
-    
+
     srtctl_root = get_srtslurm_setting("srtctl_root")
-    if srtctl_root:
-        srtctl_source = Path(srtctl_root)
-    else:
-        # srtctl source is the parent of src/srtctl (i.e., the repo root)
-        srtctl_source = Path(__file__).parent.parent.parent.parent
+    # srtctl source is the parent of src/srtctl (i.e., the repo root)
+    srtctl_source = Path(srtctl_root) if srtctl_root else Path(__file__).parent.parent.parent.parent
 
     env = Environment(loader=FileSystemLoader(str(template_dir)))
     template = env.get_template("job_script_minimal.j2")

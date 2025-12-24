@@ -407,7 +407,8 @@ class SweepOrchestrator:
                     "Profiling enabled (type=%s) - automatically using 'profiling' benchmark",
                     self.config.profiling.type,
                 )
-                logger.info("Profiling config: isl=%s, osl=%s, concurrency=%s",
+                logger.info(
+                    "Profiling config: isl=%s, osl=%s, concurrency=%s",
                     self.config.profiling.isl,
                     self.config.profiling.osl,
                     self.config.profiling.concurrency,

@@ -360,9 +360,7 @@ def endpoints_to_processes(
         # Allocate bootstrap port once per prefill endpoint (shared by all processes)
         leader_node = endpoint.nodes[0]
         endpoint_bootstrap_port = (
-            port_allocator.next_bootstrap_port(leader_node)
-            if endpoint.mode == "prefill"
-            else None
+            port_allocator.next_bootstrap_port(leader_node) if endpoint.mode == "prefill" else None
         )
 
         for node_rank, node in enumerate(endpoint.nodes):

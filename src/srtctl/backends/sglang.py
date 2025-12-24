@@ -191,17 +191,19 @@ class SGLangProtocol:
         # Start with nsys prefix if provided
         cmd: list[str] = list(nsys_prefix) if nsys_prefix else []
 
-        cmd.extend([
-            "python3",
-            "-m",
-            python_module,
-            "--model-path",
-            str(runtime.model_path),
-            "--served-model-name",
-            served_model_name,
-            "--host",
-            "0.0.0.0",
-        ])
+        cmd.extend(
+            [
+                "python3",
+                "-m",
+                python_module,
+                "--model-path",
+                str(runtime.model_path),
+                "--served-model-name",
+                served_model_name,
+                "--host",
+                "0.0.0.0",
+            ]
+        )
 
         # Only pass --port when using sglang.launch_server (not dynamo.sglang)
         # dynamo.sglang uses DYN_SYSTEM_PORT env var instead
@@ -215,14 +217,16 @@ class SGLangProtocol:
         # Add multi-node coordination flags
         if is_multi_node:
             node_rank = endpoint_nodes.index(process.node)
-            cmd.extend([
-                "--dist-init-addr",
-                f"{leader_ip}:{dist_init_port}",
-                "--nnodes",
-                str(len(endpoint_nodes)),
-                "--node-rank",
-                str(node_rank),
-            ])
+            cmd.extend(
+                [
+                    "--dist-init-addr",
+                    f"{leader_ip}:{dist_init_port}",
+                    "--nnodes",
+                    str(len(endpoint_nodes)),
+                    "--node-rank",
+                    str(node_rank),
+                ]
+            )
 
         # Add config dump path (not when using sglang router)
         if dump_config_path and not use_sglang_router:

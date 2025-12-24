@@ -63,7 +63,6 @@ class ProfilingRunner(BenchmarkRunner):
         config: SrtConfig,
         runtime: RuntimeContext,
     ) -> list[str]:
-        p = config.profiling
         r = config.resources
 
         return [
@@ -75,4 +74,3 @@ class ProfilingRunner(BenchmarkRunner):
             str(r.decode_gpus),
             str(r.prefill_gpus + r.decode_gpus),
         ]
-

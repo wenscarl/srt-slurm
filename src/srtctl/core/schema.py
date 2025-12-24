@@ -623,8 +623,7 @@ class SrtConfig:
         else:
             if r.num_agg != 1:
                 raise ValidationError(
-                    f"Profiling mode requires exactly 1 aggregated worker. "
-                    f"Got agg_workers={r.num_agg}"
+                    f"Profiling mode requires exactly 1 aggregated worker. Got agg_workers={r.num_agg}"
                 )
 
     @classmethod

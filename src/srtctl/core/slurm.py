@@ -281,4 +281,3 @@ def get_container_mounts_str(mounts: dict[Path, Path]) -> str:
         Comma-separated string for --container-mounts
     """
     return ",".join(f"{host}:{container}" for host, container in mounts.items())
-
