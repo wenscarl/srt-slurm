@@ -26,10 +26,17 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
+from rich.table import Table
 
 # Import from srtctl modules
 from srtctl.core.config import get_srtslurm_setting, load_config
 from srtctl.core.schema import SrtConfig
+
+console = Console()
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -119,13 +126,15 @@ def submit_with_orchestrator(
     )
 
     if dry_run:
-        print(f"\n{'=' * 60}")
-        print(f"🔍 DRY-RUN (orchestrator mode): {config.name}")
-        print(f"{'=' * 60}")
-        print("\nGenerated sbatch script:")
-        print("-" * 60)
-        print(script_content)
-        print("-" * 60)
+        console.print()
+        console.print(Panel(
+            f"[bold]🔍 DRY-RUN[/] [dim](orchestrator mode)[/]",
+            title=config.name,
+            border_style="yellow",
+        ))
+        console.print()
+        syntax = Syntax(script_content, "bash", theme="monokai", line_numbers=True)
+        console.print(Panel(syntax, title="Generated sbatch Script", border_style="cyan"))
         return
 
     # Write script to temp file
@@ -134,8 +143,8 @@ def submit_with_orchestrator(
         f.write(script_content)
     os.chmod(script_path, 0o755)
 
-    logging.info(f"🚀 Submitting job (orchestrator mode): {config.name}")
-    logging.info(f"Script: {script_path}")
+    console.print(f"[bold cyan]🚀 Submitting:[/] {config.name}")
+    logging.debug(f"Script: {script_path}")
 
     try:
         result = subprocess.run(
@@ -146,7 +155,6 @@ def submit_with_orchestrator(
         )
 
         job_id = result.stdout.strip().split()[-1]
-        logging.info(f"✅ Job submitted: {job_id}")
 
         output_dir = Path("./outputs") / job_id
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -195,12 +203,12 @@ def submit_with_orchestrator(
         with open(output_dir / f"{job_id}.json", "w") as f:
             json.dump(metadata, f, indent=2)
 
-        print(f"\n✅ Job {job_id} submitted!")
-        print(f"📁 Output: {output_dir}")
-        print(f"📋 Monitor: tail -f {output_dir}/logs/sweep_{job_id}.log")
+        console.print(f"[bold green]✅ Job {job_id} submitted![/]")
+        console.print(f"[dim]📁 Output:[/] {output_dir}")
+        console.print(f"[dim]📋 Monitor:[/] tail -f {output_dir}/logs/sweep_{job_id}.log")
 
     except subprocess.CalledProcessError as e:
-        logging.error(f"❌ sbatch failed: {e.stderr}")
+        console.print(f"[bold red]❌ sbatch failed:[/] {e.stderr}")
         raise
     finally:
         with contextlib.suppress(OSError):
@@ -270,69 +278,93 @@ def submit_sweep(
         sweep_config = yaml.safe_load(f)
 
     configs = generate_sweep_configs(sweep_config)
-    logging.info(f"Generated {len(configs)} configurations for sweep")
+
+    # Display sweep table
+    table = Table(title=f"Sweep: {sweep_config.get('name', 'unnamed')} ({len(configs)} jobs)")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Job Name", style="green")
+    table.add_column("Parameters", style="yellow")
+
+    for i, (config_dict, params) in enumerate(configs, 1):
+        job_name = config_dict.get("name", f"job_{i}")
+        params_str = ", ".join(f"{k}={v}" for k, v in params.items())
+        table.add_row(str(i), job_name, params_str)
+
+    console.print()
+    console.print(table)
+    console.print()
 
     if dry_run:
-        logging.info(f"🔍 DRY-RUN MODE: Sweep with {len(configs)} jobs")
+        console.print(Panel(
+            f"[bold yellow]🔍 DRY-RUN MODE[/]",
+            subtitle=f"{len(configs)} jobs",
+            border_style="yellow",
+        ))
 
         sweep_dir = Path.cwd() / "dry-runs" / f"{sweep_config['name']}_sweep_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         sweep_dir.mkdir(parents=True, exist_ok=True)
-
-        logging.info(f"📁 Sweep directory: {sweep_dir}")
 
         with open(sweep_dir / "sweep_config.yaml", "w") as f:
             yaml.dump(sweep_config, f, default_flow_style=False)
 
         for i, (config_dict, params) in enumerate(configs, 1):
             job_name = config_dict.get("name", f"job_{i}")
-            logging.info(f"\n[{i}/{len(configs)}] {job_name}")
-            logging.info(f"  Parameters: {params}")
-
             job_dir = sweep_dir / f"job_{i:03d}_{job_name}"
             job_dir.mkdir(exist_ok=True)
-
             with open(job_dir / "config.yaml", "w") as f:
                 yaml.dump(config_dict, f, default_flow_style=False)
 
-            logging.info(f"  ✓ {job_dir.name}")
-
-        print(
-            f"\n{'=' * 60}\n🔍 SWEEP: {sweep_config['name']} ({len(configs)} jobs)\nOutput: {sweep_dir}\n{'=' * 60}\n"
-        )
+        console.print(f"[dim]📁 Output:[/] {sweep_dir}")
         return
 
-    # Real submission
-    for i, (config_dict, params) in enumerate(configs, 1):
-        job_name = config_dict.get("name", f"job_{i}")
-        logging.info(f"\n[{i}/{len(configs)}] Submitting: {job_name}")
-        logging.info(f"  Parameters: {params}")
+    # Real submission with progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Submitting jobs...", total=len(configs))
 
-        # Save temp config and submit
-        fd, temp_config_path = tempfile.mkstemp(suffix=".yaml", prefix="srtctl_sweep_", text=True)
-        try:
-            with os.fdopen(fd, "w") as f:
-                yaml.dump(config_dict, f)
+        for i, (config_dict, params) in enumerate(configs, 1):
+            job_name = config_dict.get("name", f"job_{i}")
+            progress.update(task, description=f"[{i}/{len(configs)}] {job_name}")
 
-            config = load_config(Path(temp_config_path))
-            submit_single(
-                config_path=Path(temp_config_path),
-                config=config,
-                dry_run=False,
-                setup_script=setup_script,
-                tags=tags,
-            )
-        finally:
-            with contextlib.suppress(OSError):
-                os.remove(temp_config_path)
+            # Save temp config and submit
+            fd, temp_config_path = tempfile.mkstemp(suffix=".yaml", prefix="srtctl_sweep_", text=True)
+            try:
+                with os.fdopen(fd, "w") as f:
+                    yaml.dump(config_dict, f)
+
+                config = load_config(Path(temp_config_path))
+                submit_single(
+                    config_path=Path(temp_config_path),
+                    config=config,
+                    dry_run=False,
+                    setup_script=setup_script,
+                    tags=tags,
+                )
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temp_config_path)
+
+            progress.advance(task)
+
+    console.print(f"\n[bold green]✅ Sweep complete![/] Submitted {len(configs)} jobs.")
 
 
 def main():
+    # If no args at all, launch interactive mode
+    if len(sys.argv) == 1:
+        from srtctl.cli.interactive import run_interactive
+        sys.exit(run_interactive())
+
     setup_logging()
 
     parser = argparse.ArgumentParser(
         description="srtctl - SLURM job submission",
         epilog="""Examples:
-  srtctl apply -f config.yaml                    # Submit job (orchestrator mode)
+  srtctl                                         # Interactive mode
+  srtctl apply -f config.yaml                    # Submit job
   srtctl apply -f config.yaml --sweep            # Submit sweep
   srtctl dry-run -f config.yaml                  # Dry run
 """,
@@ -344,6 +376,7 @@ def main():
     def add_common_args(p):
         p.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
         p.add_argument("--sweep", action="store_true", help="Force sweep mode")
+        p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
 
     apply_parser = subparsers.add_parser("apply", help="Submit job(s) to SLURM")
     add_common_args(apply_parser)
@@ -354,8 +387,9 @@ def main():
     add_common_args(dry_run_parser)
 
     args = parser.parse_args()
+
     if not args.config.exists():
-        logging.error(f"Config not found: {args.config}")
+        console.print(f"[bold red]Config not found:[/] {args.config}")
         sys.exit(1)
 
     is_dry_run = args.command == "dry-run"
@@ -370,7 +404,8 @@ def main():
         else:
             submit_single(config_path=args.config, dry_run=is_dry_run, setup_script=setup_script, tags=tags)
     except Exception as e:
-        logging.exception(f"Error: {e}")
+        console.print(f"[bold red]Error:[/] {e}")
+        logging.debug("Full traceback:", exc_info=True)
         sys.exit(1)
 
 
