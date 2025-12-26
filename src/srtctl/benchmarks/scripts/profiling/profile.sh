@@ -20,6 +20,7 @@ decode_gpus=$4
 total_gpus=$5
 
 echo "Profiling Configuration:"
+echo "  Profiling mode: ${PROFILING_MODE}"
 echo "  Profiling dir: ${SGLANG_TORCH_PROFILER_DIR}"
 echo "  Prefill workers: ${n_prefill}"
 echo "  Decode workers: ${n_decode}"
@@ -125,30 +126,32 @@ for ip in "${AGG_IPS[@]}"; do
     start_profile_on_worker "${ip}" "${agg_start}" "${agg_stop}"
 done
 
-# Generate traffic
-echo ""
-echo "Generating profiling traffic..."
-python3 -m sglang.bench_serving \
-    --backend sglang \
-    --model "${model_name}" \
-    --host "${head_node}" --port "${head_port}" \
-    --dataset-name random \
-    --max-concurrency "${PROFILE_CONCURRENCY}" \
-    --num-prompts 128 \
-    --random-input-len "${PROFILE_ISL}" \
-    --random-output-len "${PROFILE_OSL}" \
-    --random-range-ratio 1 \
-    --warmup-request 0
+# Only the prefill profiling job needs to generate traffic through the router.
+if [[ "${PROFILING_MODE}" == "prefill" ]]; then
+    echo ""
+    echo "Generating profiling traffic..."
+    python3 -m sglang.bench_serving \
+        --backend sglang \
+        --model "${model_name}" \
+        --host "${head_node}" --port "${head_port}" \
+        --dataset-name random \
+        --max-concurrency "${PROFILE_CONCURRENCY}" \
+        --num-prompts 128 \
+        --random-input-len "${PROFILE_ISL}" \
+        --random-output-len "${PROFILE_OSL}" \
+        --random-range-ratio 1 \
+        --warmup-request 0
 
-# Run lm-eval for additional profiling coverage
-echo ""
-echo "Running lm-eval..."
-pip install lm-eval tenacity > /dev/null 2>&1
-python -m lm_eval \
-    --model local-completions \
-    --tasks gsm8k \
-    --model_args "base_url=http://${head_node}:${head_port}/v1/completions,model=${model_name},tokenized_requests=False,tokenizer_backend=None,num_concurrent=${PROFILE_CONCURRENCY},timeout=6000,max_retries=1" \
-    --limit 10
+    # Run lm-eval for additional profiling coverage
+    echo ""
+    echo "Running lm-eval..."
+    pip install lm-eval tenacity > /dev/null 2>&1
+    python -m lm_eval \
+        --model local-completions \
+        --tasks gsm8k \
+        --model_args "base_url=http://${head_node}:${head_port}/v1/completions,model=${model_name},tokenized_requests=False,tokenizer_backend=None,num_concurrent=${PROFILE_CONCURRENCY},timeout=6000,max_retries=1" \
+        --limit 10
+fi
 
 exit_code=$?
 set +x
