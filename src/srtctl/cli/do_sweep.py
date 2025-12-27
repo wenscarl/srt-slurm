@@ -380,10 +380,12 @@ class SweepOrchestrator:
         logger.debug("Nginx config written to %s", nginx_config_path)
 
         # Install nginx and run it (daemon off keeps nginx in foreground so srun can manage it)
+        # Use container path (/logs) since log_dir is mounted there
+        container_config_path = "/logs/nginx.conf"
         cmd = [
             "bash", "-c",
             f"apt-get update -qq && apt-get install -y -qq nginx && "
-            f"nginx -c {nginx_config_path} -g 'daemon off;'"
+            f"nginx -c {container_config_path} -g 'daemon off;'"
         ]
 
         proc = start_srun_process(
