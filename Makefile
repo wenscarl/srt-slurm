@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test test-cov ci check setup-configs dashboard sync-to-cloud sync-run delete-from-cloud cleanup
+.PHONY: lint test test-cov ci check setup cleanup gb200-fp8 gb200-fp4
 
 NATS_VERSION ?= v2.10.28
 ETCD_VERSION ?= v3.5.21
@@ -12,8 +12,6 @@ default:
 lint:
 	uv run ruff check src/srtctl/
 	uv run ruff format --check src/srtctl/
-
-typecheck:
 	uv run ty check src/srtctl/ || true
 
 test:
@@ -32,6 +30,22 @@ ci: check
 		exit 1; \
 	fi
 	@uv run python -m analysis.srtlog.sync_results delete $(RUN_ID)
+
+# Runners
+gb200-fp8:
+	srtctl apply -f recipies/gb200-fp8/1k1k/low-latency.yaml
+	srtctl apply -f recipies/gb200-fp8/1k1k/max-tpt-2p1d.yaml
+	srtctl apply -f recipies/gb200-fp8/1k1k/mid-curve-3p1d.yaml
+	srtctl apply -f recipies/gb200-fp8/8k1k/low-latency.yaml
+	srtctl apply -f recipies/gb200-fp8/8k1k/mid-curve-5p1d.yaml
+
+gb200-fp4:
+	srtctl apply -f recipies/gb200-fp4/1k1k/low-latency.yaml
+	srtctl apply -f recipies/gb200-fp4/1k1k/max-tpt.yaml
+	srtctl apply -f recipies/gb200-fp4/1k1k/mid-curve.yaml
+	srtctl apply -f recipies/gb200-fp4/8k1k/low-latency.yaml
+	srtctl apply -f recipies/gb200-fp4/8k1k/max-tpt.yaml
+	srtctl apply -f recipies/gb200-fp4/8k1k/mid-curve.yaml
 
 setup:
 	@echo "📦 Setting up configs and logs directories..."
