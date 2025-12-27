@@ -323,7 +323,7 @@ class SweepOrchestrator:
         prefill_leaders: list[tuple[str, int, int]] = []  # (ip, http_port, bootstrap_port)
         decode_leaders: list[tuple[str, int]] = []  # (ip, http_port)
 
-        for process in self.processes:
+        for process in self.backend_processes:
             if not process.is_leader:
                 continue
             leader_ip = get_hostname_ip(process.node)
