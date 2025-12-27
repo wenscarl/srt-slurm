@@ -341,6 +341,8 @@ class SweepOrchestrator:
             cmd.extend(["--decode", f"http://{ip}:{http_port}"])
 
         cmd.extend(["--host", "0.0.0.0", "--port", "8000"])
+        # Give workers plenty of time to start (2 hours) - they can take 15+ min to load large models
+        cmd.extend(["--worker-startup-timeout-secs", "7200"])
         cmd.extend(self.config.frontend.get_router_args_list())
 
         logger.info("Router command: %s", shlex.join(cmd))
