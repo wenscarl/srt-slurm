@@ -202,13 +202,6 @@ class RuntimeContext:
             environment=dict(config.environment),
         )
 
-    def get_container_mounts_str(self) -> str:
-        """Get container mounts as a comma-separated string for srun."""
-        mounts = []
-        for host_path, container_path in self.container_mounts.items():
-            mounts.append(f"{host_path}:{container_path}")
-        return ",".join(mounts)
-
     def format_string(self, template: str, **extra_kwargs) -> str:
         """Format a template string with runtime values.
 

@@ -127,11 +127,13 @@ def submit_with_orchestrator(
 
     if dry_run:
         console.print()
-        console.print(Panel(
-            f"[bold]🔍 DRY-RUN[/] [dim](orchestrator mode)[/]",
-            title=config.name,
-            border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                "[bold]🔍 DRY-RUN[/] [dim](orchestrator mode)[/]",
+                title=config.name,
+                border_style="yellow",
+            )
+        )
         console.print()
         syntax = Syntax(script_content, "bash", theme="monokai", line_numbers=True)
         console.print(Panel(syntax, title="Generated sbatch Script", border_style="cyan"))
@@ -295,11 +297,13 @@ def submit_sweep(
     console.print()
 
     if dry_run:
-        console.print(Panel(
-            f"[bold yellow]🔍 DRY-RUN MODE[/]",
-            subtitle=f"{len(configs)} jobs",
-            border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                "[bold yellow]🔍 DRY-RUN MODE[/]",
+                subtitle=f"{len(configs)} jobs",
+                border_style="yellow",
+            )
+        )
 
         sweep_dir = Path.cwd() / "dry-runs" / f"{sweep_config['name']}_sweep_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         sweep_dir.mkdir(parents=True, exist_ok=True)
@@ -307,7 +311,7 @@ def submit_sweep(
         with open(sweep_dir / "sweep_config.yaml", "w") as f:
             yaml.dump(sweep_config, f, default_flow_style=False)
 
-        for i, (config_dict, params) in enumerate(configs, 1):
+        for i, (config_dict, _params) in enumerate(configs, 1):
             job_name = config_dict.get("name", f"job_{i}")
             job_dir = sweep_dir / f"job_{i:03d}_{job_name}"
             job_dir.mkdir(exist_ok=True)
@@ -325,7 +329,7 @@ def submit_sweep(
     ) as progress:
         task = progress.add_task("Submitting jobs...", total=len(configs))
 
-        for i, (config_dict, params) in enumerate(configs, 1):
+        for i, (config_dict, _params) in enumerate(configs, 1):
             job_name = config_dict.get("name", f"job_{i}")
             progress.update(task, description=f"[{i}/{len(configs)}] {job_name}")
 
@@ -356,6 +360,7 @@ def main():
     # If no args at all, launch interactive mode
     if len(sys.argv) == 1:
         from srtctl.cli.interactive import run_interactive
+
         sys.exit(run_interactive())
 
     setup_logging()

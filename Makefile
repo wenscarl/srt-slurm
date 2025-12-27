@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test test-cov ci setup-configs dashboard sync-to-cloud sync-run delete-from-cloud cleanup
+.PHONY: lint typecheck test test-cov ci check setup-configs dashboard sync-to-cloud sync-run delete-from-cloud cleanup
 
 NATS_VERSION ?= v2.10.28
 ETCD_VERSION ?= v3.5.21
@@ -22,31 +22,12 @@ test:
 test-cov:
 	uv run pytest tests/ --cov=srtctl --cov-report=term-missing --cov-report=html
 
-ci: lint test
+# Run lint + tests in one command
+check: lint test
+	@echo "✓ All checks passed"
+
+ci: check
 	@echo "✓ CI checks passed"
-
-dashboard:
-	uv run streamlit run analysis/dashboard/app.py
-
-sync-to-cloud:
-	@echo "☁️  Syncing benchmark results to cloud storage..."
-	@echo "📁 Logs directory: $(LOGS_DIR)"
-	@uv run python -m analysis.srtlog.sync_results --logs-dir $(LOGS_DIR) push-all
-	@echo "✅ Sync complete!"
-
-sync-run:
-	@if [ -z "$(RUN_ID)" ]; then \
-		echo "❌ Error: RUN_ID not specified"; \
-		echo "Usage: make sync-run RUN_ID=3667_1P_1D_20251110_192145"; \
-		exit 1; \
-	fi
-	@echo "☁️  Syncing run $(RUN_ID) to cloud storage..."
-	@uv run python -m analysis.srtlog.sync_results --logs-dir $(LOGS_DIR) push $(LOGS_DIR)/$(RUN_ID)
-	@echo "✅ Sync complete!"
-
-delete-from-cloud:
-	@if [ -z "$(RUN_ID)" ]; then \
-		echo "❌ Error: RUN_ID not specified"; \
 		echo "Usage: make delete-from-cloud RUN_ID=3667_1P_1D_20251110_192145"; \
 		exit 1; \
 	fi

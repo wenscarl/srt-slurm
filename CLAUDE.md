@@ -5,8 +5,14 @@ Development guide for working on this codebase.
 ## Quick Reference
 
 ```bash
-# Run all tests
-uv run pytest tests/ -v
+# Run lint + tests (recommended)
+make check
+
+# Just lint
+make lint
+
+# Just tests
+make test
 
 # Run single test file
 uv run pytest tests/test_e2e.py -v
@@ -14,15 +20,9 @@ uv run pytest tests/test_e2e.py -v
 # Run single test
 uv run pytest tests/test_e2e.py::TestH100Cluster::test_endpoint_allocation -v
 
-# Lint and format
-uv run ruff check --fix src/
-uv run ruff format src/
-
-# Type check
-uv run ty check src/srtctl/
-
-# Pre-commit (runs ruff lint + format)
-uvx pre-commit run --all-files
+# Auto-fix lint issues
+uv run ruff check --fix src/srtctl/
+uv run ruff format src/srtctl/
 ```
 
 ## Code Style
@@ -76,13 +76,7 @@ For aggregated mode, pass `expected_prefill=0, expected_decode=num_agg`.
 
 ## Testing
 
-### Test Categories
-
-- `test_e2e.py` - Cluster-style tests with mocked SLURM
-- `test_endpoint_allocation.py` - GPU allocation logic
-- `test_health.py` - Health check parsing
-- `test_configs.py` - YAML config loading
-- `test_command_generation.py` - SGLang command building
+Tests are located in `tests/`. Run `make check` to run lint + all tests.
 
 ### Mocking SLURM
 
