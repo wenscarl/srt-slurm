@@ -166,7 +166,7 @@ The dashboard opens at `http://localhost:8501` by default.
 
 On the left sidebar, you will see:
 
-1. **Logs Directory Path**: Set the path to your logs directory (defaults to `logs/`)
+1. **Logs Directory Path**: Set the path to your outputs directory (defaults to `outputs/`)
 
 ### Run Selection
 

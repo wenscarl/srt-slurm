@@ -165,7 +165,10 @@ def submit_with_orchestrator(
 
         job_id = result.stdout.strip().split()[-1]
 
-        output_dir = Path("./outputs") / job_id
+        # Use project root for consistent output location
+        srtctl_root = get_srtslurm_setting("srtctl_root")
+        srtctl_source = Path(srtctl_root) if srtctl_root else Path(__file__).parent.parent.parent.parent
+        output_dir = srtctl_source / "outputs" / job_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
         shutil.copy(config_path, output_dir / "config.yaml")

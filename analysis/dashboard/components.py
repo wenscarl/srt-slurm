@@ -158,10 +158,10 @@ def _memory_to_dict(mem) -> dict:
 
 
 def get_default_logs_dir():
-    """Get default logs directory path (project root/logs)."""
+    """Get default outputs directory path (project root/outputs)."""
     # Go up 3 levels: components.py -> dashboard -> analysis -> project root
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    return os.path.join(project_root, "logs")
+    return os.path.join(project_root, "outputs")
 
 
 # Cached graph creation functions for node metrics
