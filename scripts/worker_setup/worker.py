@@ -128,6 +128,7 @@ def setup_prefill_worker(
     # Build and execute SGLang command from YAML config
     cmd_to_run = get_gpu_command(
         worker_type="prefill",
+        worker_idx=worker_idx,
         sglang_config_path=sglang_config_path,
         host_ip=leader_ip,
         port=DIST_INIT_PORT,
@@ -173,6 +174,7 @@ def setup_decode_worker(
     # Build and execute SGLang command from YAML config
     cmd_to_run = get_gpu_command(
         worker_type="decode",
+        worker_idx=worker_idx,
         sglang_config_path=sglang_config_path,
         host_ip=leader_ip,
         port=DIST_INIT_PORT,

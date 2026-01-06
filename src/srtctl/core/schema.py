@@ -7,6 +7,7 @@ Pydantic schema definitions for job configuration validation.
 """
 
 from enum import Enum
+import logging
 import re
 from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -342,15 +343,9 @@ class JobConfig(BaseModel):
 
         if is_disaggregated:
             if self.resources.prefill_workers and self.resources.prefill_workers > 1:
-                raise ValueError(
-                    f"Profiling mode requires single worker only. "
-                    f"Got prefill_workers={self.resources.prefill_workers}"
-                )
+                logging.info(f"Profiling prefill_workers={self.resources.prefill_workers}")
             if self.resources.decode_workers and self.resources.decode_workers > 1:
-                raise ValueError(
-                    f"Profiling mode requires single worker only. "
-                    f"Got decode_workers={self.resources.decode_workers}"
-                )
+                logging.info(f"Profiling decode_workers={self.resources.prefill_workers}")
         else:
             # Aggregated mode
             if self.resources.agg_workers and self.resources.agg_workers > 1:
