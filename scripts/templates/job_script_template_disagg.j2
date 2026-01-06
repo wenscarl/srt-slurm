@@ -544,27 +544,6 @@ srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w $PROFILE_ORCHEST
 {% endraw %}
 {% endif %}
 
-{% raw %}
-echo "Starting profiler..."
-
-# Get leader nodes for first prefill and decode workers
-PREFILL_LEADER_NODE=${nodes[${prefill_leaders[0]}]}
-DECODE_LEADER_NODE=${nodes[${decode_leaders[0]}]}
-
-echo "Prefill profiling will run on: $PREFILL_LEADER_NODE"
-echo "Decode profiling will run on: $DECODE_LEADER_NODE"
-
-# Run profiling on prefill leader (drives traffic via router)
-srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w $PREFILL_LEADER_NODE \
-    --output=${LOG_DIR}/profile_prefill.out --overlap \
-    bash -c "PROFILING_MODE=prefill {% endraw %}{% if profiler == 'torch' %}SGLANG_TORCH_PROFILER_DIR=/logs/profiles/prefill {% endif %}{{ prefill_profile_env }}{% raw %} /scripts/profiling/profile.sh $PREFILL_WORKERS $DECODE_WORKERS $PREFILL_GPUS $DECODE_GPUS $TOTAL_GPUS" &
-
-# Run profiling on decode leader (only triggers /start_profile, no extra traffic)
-srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w $DECODE_LEADER_NODE \
-    --output=${LOG_DIR}/profile_decode.out  --overlap \
-    bash -c "PROFILING_MODE=decode {% endraw %}{% if profiler == 'torch' %}SGLANG_TORCH_PROFILER_DIR=/logs/profiles/decode {% endif %}{{ decode_profile_env }}{% raw %} /scripts/profiling/profile.sh $PREFILL_WORKERS $DECODE_WORKERS $PREFILL_GPUS $DECODE_GPUS $TOTAL_GPUS" &
-{% endraw %}
-
 {% if profiler != 'none' %}
 {% raw %}
 # Wait for all profiling scripts to complete (both prefill and decode)
