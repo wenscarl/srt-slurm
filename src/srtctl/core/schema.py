@@ -268,6 +268,9 @@ class BackendConfig(BaseModel):
     # Whether to launch sglang_router alongside the workers (PD disaggregation).
     # This is user-configurable via backend.use_sglang_router in the recipe.
     use_sglang_router: bool = False
+    # Path to sglang source directory on host (for debugging with sglang-router mode)
+    # If provided, will be mounted to /ext-sglang-src/ in container and installed with pip install -e
+    sglang_src_dir: Optional[str] = None
 
 
 class JobConfig(BaseModel):

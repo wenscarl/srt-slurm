@@ -123,6 +123,67 @@ The default bootstrap port is `30001` (matching most recipes). If you use a diff
 
 Workers listen on port `30000` by default. This is standard sglang behavior and doesn't need configuration.
 
+## Debugging with SGLang Source Code
+
+When using sglang-router mode, you can mount and install sglang from source for debugging purposes. This is useful when you need to test local changes or debug issues in sglang itself.
+
+### Configuration
+
+Add `sglang_src_dir` to your recipe's `backend` section:
+
+```yaml
+backend:
+  use_sglang_router: true
+  sglang_src_dir: "/path/to/your/local/sglang"
+```
+
+### How It Works
+
+1. Your local sglang directory is mounted to `/ext-sglang-src/` in the container
+2. Before launching workers, the script runs: `pip install -e . --no-deps`
+3. Workers use your local sglang code instead of the container's pre-installed version
+
+### Behavior
+
+**With `sglang_src_dir` set:**
+- Mounts your local sglang source to `/ext-sglang-src/`
+- Installs it in editable mode on all prefill/decode/aggregated workers
+- Your local changes take effect immediately
+
+**Without `sglang_src_dir` (or empty):**
+- No mount is added
+- Installation step is skipped gracefully
+- Uses the container's pre-installed sglang
+
+### Example
+
+```yaml
+name: "debug-sglang-router"
+
+model:
+  path: "deepseek-r1-fp4"
+  container: "0.5.5.post2"
+
+backend:
+  use_sglang_router: true
+  sglang_src_dir: "/home/username/projects/sglang"  # Your local sglang checkout
+
+  sglang_config:
+    # ... your config
+```
+
+Then apply:
+```bash
+srtctl apply -f recipies/debug-sglang-router.yaml
+```
+
+### Notes
+
+- Only works with `use_sglang_router: true` (disaggregation mode)
+- The source directory must exist on the host running srtctl
+- Dependencies are NOT reinstalled (uses `--no-deps`), so the container must have compatible dependencies already installed
+- Useful for iterative debugging without rebuilding containers
+
 ## Complete Example
 
 Here's a full recipe using sglang router:

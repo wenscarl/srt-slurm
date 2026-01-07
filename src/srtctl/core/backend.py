@@ -231,6 +231,7 @@ class SGLangBackend:
             "enable_multiple_frontends": self.backend_config.get("enable_multiple_frontends", True),
             "num_additional_frontends": self.backend_config.get("num_additional_frontends", 9),
             "use_sglang_router": self.backend_config.get("use_sglang_router", False),
+            "sglang_src_dir": self.backend_config.get("sglang_src_dir"),
             "do_benchmark": bench_type != "manual",
             "benchmark_type": bench_type,
             "benchmark_arg": parsable_config,

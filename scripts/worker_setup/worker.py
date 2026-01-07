@@ -7,7 +7,11 @@ import logging
 import subprocess
 import os
 
-from .command import get_gpu_command, install_dynamo_wheels
+from .command import (
+    get_gpu_command,
+    install_dynamo_wheels,
+    install_sglang_from_source,
+)
 from .environment import DIST_INIT_PORT, ETCD_CLIENT_PORT
 from .infrastructure import setup_head_prefill_node
 from .utils import run_command, wait_for_etcd
@@ -102,6 +106,10 @@ def setup_prefill_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+    else:
+        # Install sglang from source when using sglang-router mode (for debugging)
+        logging.info(f"Setting up prefill worker {worker_idx}, local rank {local_rank} (sglang-router mode)")
+        install_sglang_from_source()
 
     # Run custom setup script if provided
     _run_setup_script(setup_script)
@@ -163,6 +171,9 @@ def setup_decode_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+    else:
+        # Install sglang from source when using sglang-router mode (for debugging)
+        install_sglang_from_source()
 
     # Run custom setup script if provided
     _run_setup_script(setup_script)
@@ -263,6 +274,10 @@ def setup_aggregated_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+    else:
+        # Install sglang from source when using sglang-router mode (for debugging)
+        logging.info(f"Setting up aggregated worker {worker_idx}, local rank {local_rank} (sglang-router mode)")
+        install_sglang_from_source()
 
     # Run custom setup script if provided
     _run_setup_script(setup_script)

@@ -145,6 +145,64 @@ def install_dynamo_wheels(gpu_type: str) -> None:
     logging.info("Successfully installed dynamo from PyPI")
 
 
+def install_sglang_from_source(sglang_src_path: str = "/ext-sglang-src") -> None:
+    """Install sglang from source for debugging in sglang-router mode.
+
+    Skips installation silently if source directory is not mounted.
+
+    Args:
+        sglang_src_path: Path to sglang source directory (default: /ext-sglang-src)
+    """
+    if not os.path.exists(sglang_src_path):
+        logging.info(f"SGLang source not mounted at {sglang_src_path}, skipping source installation")
+        return
+
+    # Verify the path is absolute and exists
+    abs_path = os.path.abspath(sglang_src_path)
+    # SGLang's Python package is in the 'python' subdirectory
+    abs_path = os.path.join(abs_path, 'python')
+    logging.info(f"Installing sglang from source: {abs_path}")
+    logging.info(f"Directory exists: {os.path.isdir(abs_path)}")
+
+    # List directory contents for debugging
+    try:
+        contents = os.listdir(abs_path)
+        logging.info(f"Directory contains {len(contents)} items: {contents[:20]}")
+    except Exception as e:
+        logging.error(f"Cannot list directory {abs_path}: {e}")
+        raise RuntimeError(f"Cannot access sglang source directory: {abs_path}")
+
+    # Check if this looks like a valid Python project
+    setup_py = os.path.join(abs_path, "setup.py")
+    pyproject_toml = os.path.join(abs_path, "pyproject.toml")
+
+    if not os.path.exists(setup_py) and not os.path.exists(pyproject_toml):
+        logging.error(f"Directory {abs_path} does not contain setup.py or pyproject.toml")
+        logging.error(f"This does not appear to be a valid sglang source directory")
+
+        raise RuntimeError(
+            f"Invalid sglang source directory: {abs_path}\n"
+            f"The directory must contain setup.py or pyproject.toml.\n"
+            f"Check that sglang_src_dir in your YAML points to the sglang project root.\n"
+            f"Found files: {contents[:20]}"
+        )
+
+    logging.info(f"Found Python project files in {abs_path}")
+
+    # Change to sglang source directory and install in editable mode
+    result = subprocess.run(
+        ["python3", "-m", "pip", "install", "-e", ".", "--no-deps"],
+        cwd=abs_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        logging.error(f"Failed to install sglang from source: {result.stderr}")
+        raise RuntimeError(f"Failed to install sglang from {abs_path}")
+
+    logging.info("Successfully installed sglang from source")
+
+
 def get_gpu_command(
     worker_type: str,
     worker_idx: int,
