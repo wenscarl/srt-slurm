@@ -8,25 +8,35 @@ Unified job submission interface for srtctl.
 This is the main entrypoint for submitting benchmarks via YAML configs.
 
 Usage:
-    srtctl config.yaml
-    srtctl config.yaml --dry-run
-    srtctl sweep.yaml --sweep
+    srtctl apply -f config.yaml                     # Submit using typed config
+    srtctl apply -f config.yaml --use-orchestrator  # Use new Python orchestrator
+    srtctl dry-run -f sweep.yaml --sweep
 """
 
 import argparse
+import contextlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
-import yaml
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
+from rich.table import Table
+
 # Import from srtctl modules
-from srtctl.core.config import load_config
-from srtctl.core.sweep import generate_sweep_configs
-from srtctl.core.backend import SGLangBackend
+from srtctl.core.config import get_srtslurm_setting, load_config
+from srtctl.core.schema import SrtConfig
+
+console = Console()
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -37,203 +47,218 @@ def setup_logging(level: int = logging.INFO) -> None:
     )
 
 
-def render_commands_file(backend, sglang_config_path: Path, output_path: Path) -> Path:
-    """Generate commands.sh with rendered SGLang commands."""
-    content = f"""#!/bin/bash
-# Generated SGLang commands - Config: {sglang_config_path}
+def generate_minimal_sbatch_script(
+    config: SrtConfig,
+    config_path: Path,
+    setup_script: str | None = None,
+) -> str:
+    """Generate minimal sbatch script that calls the Python orchestrator.
 
-# PREFILL
-{backend.render_command(mode="prefill", config_path=sglang_config_path)}
+    The orchestrator runs INSIDE the container on the head node.
+    srtctl is pip-installed inside the container at job start.
 
-# DECODE
-{backend.render_command(mode="decode", config_path=sglang_config_path)}
-"""
-    output_path.write_text(content)
-    output_path.chmod(0o755)
-    return output_path
+    Args:
+        config: Typed SrtConfig
+        config_path: Path to the YAML config file
+        setup_script: Optional setup script override (passed via env var)
 
+    Returns:
+        Rendered sbatch script as string
+    """
+    from jinja2 import Environment, FileSystemLoader
 
-def run_dry_run(config: dict, backend, sglang_config_path: Path = None) -> Path:
-    """Execute dry-run: save artifacts and print summary."""
-    job_name = config.get("name", "dry-run")
+    # Find template directory and srtctl source
+    # Templates are now in src/srtctl/templates/
+    template_dir = Path(__file__).parent.parent / "templates"
+
+    srtctl_root = get_srtslurm_setting("srtctl_root")
+    # srtctl source is the parent of src/srtctl (i.e., the repo root)
+    srtctl_source = Path(srtctl_root) if srtctl_root else Path(__file__).parent.parent.parent.parent
+
+    env = Environment(loader=FileSystemLoader(str(template_dir)))
+    template = env.get_template("job_script_minimal.j2")
+
+    total_nodes = config.resources.total_nodes
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path.cwd() / "dry-runs" / f"{job_name}_{timestamp}"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save config
-    with open(output_dir / "config.yaml", "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    # Resolve container image path (expand aliases from srtslurm.yaml)
+    container_image = os.path.expandvars(config.model.container)
 
-    # Save sglang config if present
-    has_sglang = False
-    if sglang_config_path and sglang_config_path.exists():
-        shutil.copy(sglang_config_path, output_dir / "sglang_config.yaml")
-        render_commands_file(backend, sglang_config_path, output_dir / "commands.sh")
-        has_sglang = True
+    rendered = template.render(
+        job_name=config.name,
+        total_nodes=total_nodes,
+        gpus_per_node=config.resources.gpus_per_node,
+        account=config.slurm.account or os.environ.get("SLURM_ACCOUNT", "default"),
+        partition=config.slurm.partition or os.environ.get("SLURM_PARTITION", "default"),
+        time_limit=config.slurm.time_limit or "01:00:00",
+        config_path=str(config_path.resolve()),
+        timestamp=timestamp,
+        use_gpus_per_node_directive=get_srtslurm_setting("use_gpus_per_node_directive", True),
+        use_segment_sbatch_directive=get_srtslurm_setting("use_segment_sbatch_directive", True),
+        sbatch_directives=config.sbatch_directives,
+        container_image=container_image,
+        srtctl_source=str(srtctl_source.resolve()),
+        setup_script=setup_script,
+    )
 
-    # Save metadata
-    with open(output_dir / "metadata.json", "w") as f:
-        json.dump({"job_name": job_name, "timestamp": timestamp, "mode": "dry-run"}, f, indent=2)
+    return rendered
 
-    # Print summary
-    print(f"\n{'=' * 60}\n🔍 DRY-RUN: {job_name}\n{'=' * 60}")
-    print(f"Output: {output_dir}")
-    print(f"Files: config.yaml{', sglang_config.yaml, commands.sh' if has_sglang else ''}, metadata.json")
-    print(f"{'=' * 60}\n")
 
-    return output_dir
+def submit_with_orchestrator(
+    config_path: Path,
+    config: SrtConfig | None = None,
+    dry_run: bool = False,
+    tags: list[str] | None = None,
+    setup_script: str | None = None,
+) -> None:
+    """Submit job using the new Python orchestrator.
+
+    This uses the minimal sbatch template that calls srtctl.cli.do_sweep.
+
+    Args:
+        config_path: Path to YAML config file
+        config: Pre-loaded SrtConfig (or None to load from path)
+        dry_run: If True, print script but don't submit
+        tags: Optional tags for the run
+        setup_script: Optional custom setup script name (overrides config)
+    """
+
+    if config is None:
+        config = load_config(config_path)
+
+    script_content = generate_minimal_sbatch_script(
+        config=config,
+        config_path=config_path,
+        setup_script=setup_script,
+    )
+
+    if dry_run:
+        console.print()
+        console.print(
+            Panel(
+                "[bold]🔍 DRY-RUN[/] [dim](orchestrator mode)[/]",
+                title=config.name,
+                border_style="yellow",
+            )
+        )
+        console.print()
+        syntax = Syntax(script_content, "bash", theme="monokai", line_numbers=True)
+        console.print(Panel(syntax, title="Generated sbatch Script", border_style="cyan"))
+        return
+
+    # Write script to temp file
+    fd, script_path = tempfile.mkstemp(suffix=".slurm", prefix="srtctl_", text=True)
+    with os.fdopen(fd, "w") as f:
+        f.write(script_content)
+    os.chmod(script_path, 0o755)
+
+    console.print(f"[bold cyan]🚀 Submitting:[/] {config.name}")
+    logging.debug(f"Script: {script_path}")
+
+    try:
+        result = subprocess.run(
+            ["sbatch", script_path],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        job_id = result.stdout.strip().split()[-1]
+
+        # Use project root for consistent output location
+        srtctl_root = get_srtslurm_setting("srtctl_root")
+        srtctl_source = Path(srtctl_root) if srtctl_root else Path(__file__).parent.parent.parent.parent
+        output_dir = srtctl_source / "outputs" / job_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        shutil.copy(config_path, output_dir / "config.yaml")
+        shutil.copy(script_path, output_dir / "sbatch_script.sh")
+
+        # Build comprehensive job metadata
+        metadata = {
+            "version": "2.0",
+            "orchestrator": True,
+            "job_id": job_id,
+            "job_name": config.name,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            # Model info
+            "model": {
+                "path": config.model.path,
+                "container": config.model.container,
+                "precision": config.model.precision,
+            },
+            # Resource allocation
+            "resources": {
+                "gpu_type": config.resources.gpu_type,
+                "gpus_per_node": config.resources.gpus_per_node,
+                "prefill_nodes": config.resources.prefill_nodes,
+                "decode_nodes": config.resources.decode_nodes,
+                "prefill_workers": config.resources.num_prefill,
+                "decode_workers": config.resources.num_decode,
+                "agg_workers": config.resources.num_agg,
+            },
+            # Backend and frontend
+            "backend_type": config.backend_type,
+            "frontend_type": config.frontend.type,
+            # Benchmark config
+            "benchmark": {
+                "type": config.benchmark.type,
+                "isl": config.benchmark.isl,
+                "osl": config.benchmark.osl,
+            },
+        }
+        if tags:
+            metadata["tags"] = tags
+        if config.setup_script:
+            metadata["setup_script"] = config.setup_script
+
+        with open(output_dir / f"{job_id}.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        console.print(f"[bold green]✅ Job {job_id} submitted![/]")
+        console.print(f"[dim]📁 Logs:[/] {output_dir}/logs")
+        console.print(f"[dim]📋 Monitor:[/] tail -f {output_dir}/logs/sweep_{job_id}.log")
+
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]❌ sbatch failed:[/] {e.stderr}")
+        raise
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(script_path)
 
 
 def submit_single(
-    config_path: Path = None,
-    config: dict = None,
+    config_path: Path | None = None,
+    config: SrtConfig | None = None,
     dry_run: bool = False,
-    setup_script: str = None,
-    tags: list[str] = None,
+    setup_script: str | None = None,
+    tags: list[str] | None = None,
 ):
-    """
-    Submit a single job from YAML config.
+    """Submit a single job from YAML config.
+
+    Uses the orchestrator by default. This is the recommended submission method.
 
     Args:
-        config_path: Path to YAML config file (or None if config provided)
-        config: Pre-loaded config dict (or None if loading from path)
-        dry_run: If True, don't submit to SLURM, just validate and save artifacts
-        setup_script: Optional custom setup script name in configs directory
-        tags: Optional list of tags to apply to the run
+        config_path: Path to YAML config file
+        config: Pre-loaded SrtConfig (or None if loading from path)
+        dry_run: If True, don't submit to SLURM
+        setup_script: Optional custom setup script name
+        tags: Optional list of tags
     """
-    # Load config if needed
-    if config is None:
+    if config is None and config_path:
         config = load_config(config_path)
-    # else: config already validated and expanded from sweep
 
-    # Dry-run mode
-    if dry_run:
-        logging.info(f"🔍 DRY-RUN MODE: {config['name']}")
-        backend_type = config.get("backend", {}).get("type")
-        backend = SGLangBackend(config, setup_script=setup_script) if backend_type == "sglang" else None
-        sglang_config_path = backend.generate_config_file() if backend else None
-        run_dry_run(config, backend, sglang_config_path)
-        return
+    if config is None:
+        raise ValueError("Either config_path or config must be provided")
 
-    # Real submission mode
-    logging.info(f"🚀 Submitting job: {config['name']}")
-
-    # Create backend and generate config
-    backend_type = config.get("backend", {}).get("type")
-    if backend_type == "sglang":
-        backend = SGLangBackend(config, setup_script=setup_script)
-        sglang_config_path = backend.generate_config_file()
-
-        # Generate SLURM job script using backend
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        script_path, rendered_script = backend.generate_slurm_script(
-            config_path=sglang_config_path, timestamp=timestamp
-        )
-
-        # Submit to SLURM
-        try:
-            result = subprocess.run(["sbatch", str(script_path)], capture_output=True, text=True, check=True)
-
-            # Parse job ID from sbatch output
-            job_id = result.stdout.strip().split()[-1]
-            logging.info(f"✅ Job submitted successfully with ID: {job_id}")
-
-            # Create log directory
-            is_aggregated = config.get("resources", {}).get("prefill_nodes") is None
-            if is_aggregated:
-                agg_workers = config["resources"]["agg_workers"]
-                log_dir_name = f"{job_id}_{agg_workers}A_{timestamp}"
-            else:
-                prefill_workers = config["resources"]["prefill_workers"]
-                decode_workers = config["resources"]["decode_workers"]
-                log_dir_name = f"{job_id}_{prefill_workers}P_{decode_workers}D_{timestamp}"
-
-            # Create log directory in srtctl repo
-            from srtctl.core.config import get_srtslurm_setting
-
-            srtctl_root_setting = get_srtslurm_setting("srtctl_root")
-            if srtctl_root_setting:
-                srtctl_root = Path(srtctl_root_setting)
-            else:
-                # Fall back to current yaml-config directory
-                yaml_config_root = Path(__file__).parent.parent.parent.parent
-                srtctl_root = yaml_config_root
-
-            log_dir = srtctl_root / "logs" / log_dir_name
-            log_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save rendered script
-            with open(log_dir / "sbatch_script.sh", "w") as f:
-                f.write(rendered_script)
-
-            # Save config
-            with open(log_dir / "config.yaml", "w") as f:
-                yaml.dump(config, f, default_flow_style=False)
-
-            # Save SGLang config if present
-            if sglang_config_path:
-                shutil.copy(sglang_config_path, log_dir / "sglang_config.yaml")
-
-            # Generate jobid.json metadata
-            resources, model, slurm_cfg = config.get("resources", {}), config.get("model", {}), config.get("slurm", {})
-            benchmark_cfg = config.get("benchmark", {})
-
-            run_meta = {
-                "slurm_job_id": job_id,
-                "run_date": timestamp,
-                "job_name": config.get("name", "unnamed"),
-                "account": slurm_cfg.get("account"),
-                "partition": slurm_cfg.get("partition"),
-                "time_limit": slurm_cfg.get("time_limit"),
-                "container": model.get("container"),
-                "model_dir": model.get("path"),
-                "gpus_per_node": resources.get("gpus_per_node"),
-                "gpu_type": config.get("backend", {}).get("gpu_type"),
-                "mode": "aggregated" if is_aggregated else "disaggregated",
-            }
-            if is_aggregated:
-                run_meta.update(agg_nodes=resources.get("agg_nodes"), agg_workers=resources.get("agg_workers"))
-            else:
-                run_meta.update(
-                    prefill_nodes=resources.get("prefill_nodes"),
-                    decode_nodes=resources.get("decode_nodes"),
-                    prefill_workers=resources.get("prefill_workers"),
-                    decode_workers=resources.get("decode_workers"),
-                )
-
-            metadata = {
-                "version": "1.0",
-                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "run_metadata": run_meta,
-            }
-
-            if bench_type := benchmark_cfg.get("type", "manual"):
-                bench_meta = {"type": bench_type}
-                if bench_type == "sa-bench":
-                    conc = benchmark_cfg.get("concurrencies", [])
-                    bench_meta.update(
-                        isl=str(benchmark_cfg.get("isl", "")),
-                        osl=str(benchmark_cfg.get("osl", "")),
-                        concurrencies="x".join(str(c) for c in conc) if isinstance(conc, list) else str(conc or ""),
-                        **{"req-rate": str(benchmark_cfg.get("req_rate", "inf"))},
-                    )
-                metadata["profiler_metadata"] = bench_meta
-            if tags:
-                metadata["tags"] = tags
-
-            with open(log_dir / f"{job_id}.json", "w") as f:
-                json.dump(metadata, f, indent=2)
-
-            logging.info(f"📁 Logs directory: {log_dir}")
-            print(f"\n✅ Job {job_id} submitted!")
-            print(f"📁 Logs: {log_dir}\n")
-
-        except subprocess.CalledProcessError as e:
-            logging.error(f"❌ Error submitting job: {e}")
-            logging.error(f"stderr: {e.stderr}")
-            raise
-    else:
-        raise ValueError(f"Unknown backend type: {backend_type}")
+    # Always use orchestrator mode
+    submit_with_orchestrator(
+        config_path=config_path or Path("./config.yaml"),
+        config=config,
+        dry_run=dry_run,
+        tags=tags,
+        setup_script=setup_script,
+    )
 
 
 def is_sweep_config(config_path: Path) -> bool:
@@ -246,89 +271,128 @@ def is_sweep_config(config_path: Path) -> bool:
         return False
 
 
-def submit_sweep(config_path: Path, dry_run: bool = False, setup_script: str = None, tags: list[str] = None):
-    """
-    Submit parameter sweep.
+def submit_sweep(
+    config_path: Path,
+    dry_run: bool = False,
+    setup_script: str | None = None,
+    tags: list[str] | None = None,
+):
+    """Submit parameter sweep.
 
     Args:
         config_path: Path to sweep YAML config
-        dry_run: If True, don't submit to SLURM, just validate and save artifacts
-        setup_script: Optional custom setup script name in configs directory
-        tags: Optional list of tags to apply to all runs in the sweep
+        dry_run: If True, don't submit to SLURM
+        setup_script: Optional custom setup script name
+        tags: Optional list of tags
     """
-    # Load YAML directly without validation (sweep configs have extra 'sweep' field)
+    from srtctl.core.sweep import generate_sweep_configs
+
     with open(config_path) as f:
         sweep_config = yaml.safe_load(f)
 
-    # Generate all configs
     configs = generate_sweep_configs(sweep_config)
-    logging.info(f"Generated {len(configs)} configurations for sweep")
+
+    # Display sweep table
+    table = Table(title=f"Sweep: {sweep_config.get('name', 'unnamed')} ({len(configs)} jobs)")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Job Name", style="green")
+    table.add_column("Parameters", style="yellow")
+
+    for i, (config_dict, params) in enumerate(configs, 1):
+        job_name = config_dict.get("name", f"job_{i}")
+        params_str = ", ".join(f"{k}={v}" for k, v in params.items())
+        table.add_row(str(i), job_name, params_str)
+
+    console.print()
+    console.print(table)
+    console.print()
 
     if dry_run:
-        logging.info(f"🔍 DRY-RUN MODE: Sweep with {len(configs)} jobs")
+        console.print(
+            Panel(
+                "[bold yellow]🔍 DRY-RUN MODE[/]",
+                subtitle=f"{len(configs)} jobs",
+                border_style="yellow",
+            )
+        )
 
-        # Create sweep output directory
         sweep_dir = Path.cwd() / "dry-runs" / f"{sweep_config['name']}_sweep_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         sweep_dir.mkdir(parents=True, exist_ok=True)
 
-        logging.info(f"📁 Sweep directory: {sweep_dir}")
-
-        # Save sweep config
         with open(sweep_dir / "sweep_config.yaml", "w") as f:
             yaml.dump(sweep_config, f, default_flow_style=False)
 
-        # Generate each job
-        for i, (config, params) in enumerate(configs, 1):
-            logging.info(f"\n[{i}/{len(configs)}] {config['name']}")
-            logging.info(f"  Parameters: {params}")
-
-            # Create job directory
-            job_dir = sweep_dir / f"job_{i:03d}_{config['name']}"
+        for i, (config_dict, _params) in enumerate(configs, 1):
+            job_name = config_dict.get("name", f"job_{i}")
+            job_dir = sweep_dir / f"job_{i:03d}_{job_name}"
             job_dir.mkdir(exist_ok=True)
-
-            # Save config
             with open(job_dir / "config.yaml", "w") as f:
-                yaml.dump(config, f, default_flow_style=False)
+                yaml.dump(config_dict, f, default_flow_style=False)
 
-            # Generate SGLang config and commands
-            if config.get("backend", {}).get("type") == "sglang":
-                backend = SGLangBackend(config, setup_script=setup_script)
-                sglang_config_path = backend.generate_config_file(params)
-                if sglang_config_path:
-                    shutil.copy(sglang_config_path, job_dir / "sglang_config.yaml")
-
-                    # Save rendered commands (like single dry-run does)
-                    render_commands_file(backend, sglang_config_path, job_dir / "commands.sh")
-
-            logging.info(f"  ✓ {job_dir.name}")
-
-        print(
-            f"\n{'=' * 60}\n🔍 SWEEP: {sweep_config['name']} ({len(configs)} jobs)\nOutput: {sweep_dir}\n{'=' * 60}\n"
-        )
+        console.print(f"[dim]📁 Output:[/] {sweep_dir}")
         return
 
-    # Real submission
-    for i, (config, params) in enumerate(configs, 1):
-        logging.info(f"\n[{i}/{len(configs)}] Submitting: {config['name']}")
-        logging.info(f"  Parameters: {params}")
-        submit_single(config=config, dry_run=False, setup_script=setup_script, tags=tags)
+    # Real submission with progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Submitting jobs...", total=len(configs))
+
+        for i, (config_dict, _params) in enumerate(configs, 1):
+            job_name = config_dict.get("name", f"job_{i}")
+            progress.update(task, description=f"[{i}/{len(configs)}] {job_name}")
+
+        # Save temp config and submit
+        fd, temp_config_path = tempfile.mkstemp(suffix=".yaml", prefix="srtctl_sweep_", text=True)
+        try:
+            with os.fdopen(fd, "w") as f:
+                yaml.dump(config_dict, f)
+
+            config = load_config(Path(temp_config_path))
+            submit_single(
+                config_path=Path(temp_config_path),
+                config=config,
+                dry_run=False,
+                setup_script=setup_script,
+                tags=tags,
+            )
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(temp_config_path)
+
+            progress.advance(task)
+
+    console.print(f"\n[bold green]✅ Sweep complete![/] Submitted {len(configs)} jobs.")
 
 
 def main():
+    # If no args at all, launch interactive mode
+    if len(sys.argv) == 1:
+        from srtctl.cli.interactive import run_interactive
+
+        sys.exit(run_interactive())
+
     setup_logging()
 
     parser = argparse.ArgumentParser(
         description="srtctl - SLURM job submission",
-        epilog="Examples:\n  srtctl apply -f config.yaml\n  srtctl dry-run -f sweep.yaml --sweep",
+        epilog="""Examples:
+  srtctl                                         # Interactive mode
+  srtctl apply -f config.yaml                    # Submit job
+  srtctl apply -f config.yaml --sweep            # Submit sweep
+  srtctl dry-run -f config.yaml                  # Dry run
+""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Common args for both commands
     def add_common_args(p):
         p.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
         p.add_argument("--sweep", action="store_true", help="Force sweep mode")
+        p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
 
     apply_parser = subparsers.add_parser("apply", help="Submit job(s) to SLURM")
     add_common_args(apply_parser)
@@ -339,8 +403,9 @@ def main():
     add_common_args(dry_run_parser)
 
     args = parser.parse_args()
+
     if not args.config.exists():
-        logging.error(f"Config not found: {args.config}")
+        console.print(f"[bold red]Config not found:[/] {args.config}")
         sys.exit(1)
 
     is_dry_run = args.command == "dry-run"
@@ -349,12 +414,14 @@ def main():
 
     try:
         setup_script = getattr(args, "setup_script", None)
+
         if is_sweep:
             submit_sweep(args.config, dry_run=is_dry_run, setup_script=setup_script, tags=tags)
         else:
             submit_single(config_path=args.config, dry_run=is_dry_run, setup_script=setup_script, tags=tags)
     except Exception as e:
-        logging.exception(f"Error: {e}")
+        console.print(f"[bold red]Error:[/] {e}")
+        logging.debug("Full traceback:", exc_info=True)
         sys.exit(1)
 
 

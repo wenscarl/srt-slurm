@@ -2,6 +2,25 @@
 
 This page explains the sglang router mode for prefill-decode (PD) disaggregation, an alternative to the default Dynamo frontend architecture.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Configuration](#configuration)
+  - [Router Arguments](#router-arguments)
+  - [Frontend Environment Variables](#frontend-environment-variables)
+- [Architecture Modes](#architecture-modes)
+  - [Single Router](#single-router-enable_multiple_frontends-false)
+  - [Multiple Routers](#multiple-routers-enable_multiple_frontends-true-default)
+- [How Router Distribution Works](#how-router-distribution-works)
+- [Port Configuration](#port-configuration)
+  - [Bootstrap Port](#bootstrap-port)
+  - [Server Port](#server-port)
+- [Complete Example](#complete-example)
+- [Troubleshooting](#troubleshooting)
+- [Comparison with Dynamo](#comparison-with-dynamo)
+
+---
+
 ## Overview
 
 By default, srtctl uses **Dynamo frontends** to coordinate between prefill and decode workers. This requires NATS/ETCD infrastructure and the `dynamo` package.
@@ -16,14 +35,49 @@ By default, srtctl uses **Dynamo frontends** to coordinate between prefill and d
 
 ## Configuration
 
-Enable sglang router in your recipe's `backend` section:
+Enable sglang router in your recipe's `frontend` section:
 
 ```yaml
-backend:
-  use_sglang_router: true
+frontend:
+  type: sglang
 ```
 
 That's it. The workers will launch with `sglang.launch_server` instead of `dynamo.sglang`, and the router will handle request distribution.
+
+### Router Arguments
+
+Pass extra CLI args to the router:
+
+```yaml
+frontend:
+  type: sglang
+  args:
+    kv-overlap-score-weight: 1
+    router-temperature: 0
+    no-kv-events: true # boolean flags (no value)
+    router-ttl: 120.0
+```
+
+For dynamo frontend, use the same `args` field:
+
+```yaml
+frontend:
+  type: dynamo
+  args:
+    router-mode: "kv"
+    router-reset-states: true
+```
+
+### Frontend Environment Variables
+
+Pass environment variables to frontend processes:
+
+```yaml
+frontend:
+  type: sglang
+  env:
+    MY_CUSTOM_VAR: "value"
+```
 
 ## Architecture Modes
 
@@ -32,8 +86,8 @@ That's it. The workers will launch with `sglang.launch_server` instead of `dynam
 The simplest mode - one router on node 0, no nginx:
 
 ```yaml
-backend:
-  use_sglang_router: true
+frontend:
+  type: sglang
   enable_multiple_frontends: false
 ```
 
@@ -56,8 +110,8 @@ backend:
 Nginx load balances across multiple router instances:
 
 ```yaml
-backend:
-  use_sglang_router: true
+frontend:
+  type: sglang
   enable_multiple_frontends: true # default
   num_additional_frontends: 9 # default, total = 1 + 9 = 10 routers
 ```
@@ -204,11 +258,12 @@ resources:
   decode_nodes: 2
   decode_workers: 2
 
-backend:
-  use_sglang_router: true
+frontend:
+  type: sglang
   enable_multiple_frontends: true
   num_additional_frontends: 3 # 4 total routers
 
+backend:
   sglang_config:
     prefill:
       model-path: /model/

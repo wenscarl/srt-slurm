@@ -19,9 +19,11 @@ resources:
 
 profiling:
   type: "torch"  # Options: "none", "torch", "nsys"
+  # Traffic generator parameters (same for all phases)
   isl: 1024
   osl: 128
   concurrency: 1
+  # Per-phase profiling step config
   prefill:
     start_step: 0
     stop_step: 50

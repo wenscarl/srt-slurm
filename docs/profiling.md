@@ -2,6 +2,22 @@
 
 srtctl supports two profiling backends for performance analysis: **Torch Profiler** and **NVIDIA Nsight Systems (nsys)**.
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Profiling Modes](#profiling-modes)
+- [Configuration Options](#configuration-options)
+  - [Top-level profiling section](#top-level-profiling-section)
+  - [Parameters](#parameters)
+- [Constraints](#constraints)
+- [How It Works](#how-it-works)
+- [Example Configurations](#example-configurations)
+- [Output Files](#output-files)
+  - [Viewing Results](#viewing-results)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Quick Start
 
 Add a `profiling` section to your job YAML:
@@ -11,11 +27,27 @@ Add a `profiling` section to your job YAML:
 benchmark:
   type: "manual"
 
+# For disaggregated mode (prefill_nodes + decode_nodes)
 profiling:
   type: "torch" # or "nsys"
   isl: 1024
   osl: 128
   concurrency: 24
+  prefill:
+    start_step: 0
+    stop_step: 50
+  decode:
+    start_step: 0
+    stop_step: 50
+# For aggregated mode (agg_nodes)
+# profiling:
+#   type: "torch"
+#   isl: 1024
+#   osl: 128
+#   concurrency: 24
+#   aggregated:
+#     start_step: 0
+#     stop_step: 50
 ```
 
 ## Profiling Modes
@@ -34,37 +66,41 @@ profiling:
 profiling:
   type: "torch" # Required: "none", "torch", or "nsys"
 
-  # Traffic generator parameters (required when profiling is enabled).
-  isl: 1024       # Input sequence length
-  osl: 128        # Output sequence length
+# Traffic generator parameters (required when profiling is enabled)
+  isl: 1024 # Input sequence length
+  osl: 128 # Output sequence length
   concurrency: 24 # Batch size for profiling workload
 
-  # Disaggregated mode: must set both prefill and decode sections.
+  # Disaggregated mode: must set both prefill and decode sections
   prefill:
-    start_step: 0   # Step to start profiling for prefill node
-    stop_step: 50   # Step to stop profiling for prefill node
-
+    start_step: 0 # Step to start profiling for prefill workers
+    stop_step: 50 # Step to stop profiling for prefill workers
   decode:
-    start_step: 0   # Step to start profiling for decode node
-    stop_step: 50   # Step to stop profiling for decode node
+    start_step: 0 # Step to start profiling for decode workers
+    stop_step: 50 # Step to stop profiling for decode workers
 
-  # Aggregated mode: must set aggregated section (and must NOT set prefill/decode).
+
+  # Aggregated mode: must set aggregated section (and must NOT set prefill/decode)
   # aggregated:
-  #   start_step: 0  # Step to start profiling for aggregated node
-  #   stop_step: 50  # Step to stop profiling for aggregated node
+  #   start_step: 0   # Step to start profiling for aggregated workers
+  #   stop_step: 50   # Step to stop profiling for aggregated workers
 ```
 
-The same profiling parameters are used for both prefill and decode workers in disaggregated mode.
+Traffic generator parameters (`isl`, `osl`, `concurrency`) are shared across all phases. Per-phase `start_step`/`stop_step` allow different profiling windows for prefill vs decode workers.
 
 ### Parameters
 
-| Parameter     | Description                                   | Default  |
-| ------------- | --------------------------------------------- | -------- |
-| `isl`         | Input sequence length for profiling requests  | Required |
-| `osl`         | Output sequence length for profiling requests | Required |
-| `concurrency` | Number of concurrent requests (batch size)    | Required |
-| `start_step`  | Step number to begin profiling                | `0`      |
-| `stop_step`   | Step number to end profiling                  | `50`     |
+| Parameter               | Description                                   | Default  |
+| ----------------------- | --------------------------------------------- | -------- |
+| `isl`                   | Input sequence length for profiling requests  | Required |
+| `osl`                   | Output sequence length for profiling requests | Required |
+| `concurrency`           | Number of concurrent requests (batch size)    | Required |
+| `prefill.start_step`    | Step number to begin prefill profiling        | `0`      |
+| `prefill.stop_step`     | Step number to end prefill profiling          | `50`     |
+| `decode.start_step`     | Step number to begin decode profiling         | `0`      |
+| `decode.stop_step`      | Step number to end decode profiling           | `50`     |
+| `aggregated.start_step` | Step number to begin aggregated profiling     | `0`      |
+| `aggregated.stop_step`  | Step number to end aggregated profiling       | `50`     |
 
 ## Constraints
 
@@ -137,8 +173,12 @@ profiling:
   isl: 1024
   osl: 128
   concurrency: 24
-  start_step: 0
-  stop_step: 50
+  prefill:
+    start_step: 0
+    stop_step: 50
+  decode:
+    start_step: 0
+    stop_step: 50
 
 benchmark:
   type: "manual"
@@ -161,8 +201,12 @@ profiling:
   isl: 2048
   osl: 64
   concurrency: 16
-  start_step: 10
-  stop_step: 30
+  prefill:
+    start_step: 10
+    stop_step: 30
+  decode:
+    start_step: 10
+    stop_step: 30
 ```
 
 ## Output Files

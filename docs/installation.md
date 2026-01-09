@@ -1,5 +1,21 @@
 # Installation
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Clone and Install](#clone-and-install)
+- [Gather your cluster user and target partition](#gather-your-cluster-user-and-target-partition)
+- [Run Setup](#run-setup)
+- [Configure srtslurm.yaml](#configure-srtslurmyaml)
+  - [Adding Model Paths](#adding-model-paths)
+  - [Adding Containers](#adding-containers)
+  - [Complete srtslurm.yaml Reference](#complete-srtslurmyaml-reference)
+- [Create a Job Config](#create-a-job-config)
+- [Submit the Job](#submit-the-job)
+- [Custom Setup Scripts](#custom-setup-scripts)
+
+---
+
 ## Prerequisites
 
 - Access to a SLURM cluster with GPU nodes
@@ -78,19 +94,6 @@ To create a container image from Docker:
 enroot import docker://lmsysorg/sglang:v0.5.5
 ```
 
-### Cloud Sync (Optional)
-
-To sync benchmark results to S3-compatible storage:
-
-```yaml
-cloud:
-  endpoint_url: "https://s3.example.com"
-  bucket: "benchmark-results"
-  prefix: "my-team/"
-```
-
-Then use `make sync-to-cloud` or `make sync-run RUN_ID=<run_id>`.
-
 ### Complete srtslurm.yaml Reference
 
 Here's a complete example of all available options:
@@ -120,12 +123,6 @@ model_paths:
 containers:
   latest: "/containers/sglang-latest.sqsh"
   stable: "/containers/sglang-stable.sqsh"
-
-# Cloud sync settings (optional)
-cloud:
-  endpoint_url: "https://s3.example.com"
-  bucket: "benchmark-results"
-  prefix: "my-team/"
 ```
 
 ## Create a Job Config
@@ -182,19 +179,7 @@ benchmark:
   req_rate: "inf"
 ```
 
-### Backend Options
-
-The `backend` section supports these additional options:
-
-```yaml
-backend:
-  # Frontend architecture (disaggregated mode only)
-  enable_multiple_frontends: true # Default: true. Use nginx + multiple frontends
-  num_additional_frontends: 9 # Default: 9. Additional frontends beyond the master
-
-  # Alternative: Use SGLang router instead of nginx + frontends
-  use_sglang_router: false # Default: false. Use sglang_router for load balancing
-```
+See [Configuration Reference](config-reference.md) for all available options.
 
 ## Submit the Job
 

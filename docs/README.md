@@ -2,6 +2,13 @@
 
 `srtctl` is a command-line tool for running distributed LLM inference benchmarks on SLURM clusters. It replaces complex shell scripts and 50+ CLI flags with clean, declarative YAML configuration files.
 
+## Table of Contents
+
+- [Why srtctl?](#why-srtctl)
+- [How It Works](#how-it-works)
+- [Commands](#commands)
+- [Next Steps](#next-steps)
+
 ## Why srtctl?
 
 Running large language models across multiple GPUs and nodes requires orchestrating many moving parts: SLURM job scripts, container mounts, SGLang configuration, worker coordination, and benchmark execution. Traditionally, this meant maintaining brittle bash scripts with hardcoded parameters.
