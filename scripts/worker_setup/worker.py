@@ -241,6 +241,7 @@ def setup_router_worker(
 
     cmd = " ".join(router_args)
     logging.info(f"Router command: {cmd}")
+
     return run_command(cmd)
 
 

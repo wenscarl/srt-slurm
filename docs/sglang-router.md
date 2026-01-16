@@ -167,7 +167,6 @@ model:
 backend:
   use_sglang_router: true
   sglang_src_dir: "/home/username/projects/sglang"  # Your local sglang checkout
-
   sglang_config:
     # ... your config
 ```

@@ -1,16 +1,16 @@
-# 4P1D, with 12 Decode Nodes. Uses single batch overlap
+# Example: 4P1D with sglang source code debugging enabled
+# Usage: srtctl apply -f recipies/gb200-fp4/1k1k/max-tpt-debug.yaml
 
-name: "gb200-fp4-max-tpt"
+name: "gb200-fp4-max-tpt-debug"
 
 model:
   path: "dsfp4"
-  #container: "0.5.7"
   container: "0.5.5.post2"
   precision: "fp4"
 
 resources:
   gpu_type: "gb200"
-  prefill_nodes: 1
+  prefill_nodes: 4
   decode_nodes: 12
   prefill_workers: 1
   decode_workers: 1
@@ -18,6 +18,14 @@ resources:
 
 backend:
   use_sglang_router: "true"
+  
+  # Optional: Mount sglang source code for debugging
+  # If specified, sglang will be installed from source using: pip install -e . --no-deps
+  # The source directory will be mounted at /ext-sglang-src/ in the container
+  # Example: sglang_src_dir: "/path/to/your/sglang"
+  # If not specified or left empty, the container's pre-installed sglang will be used
+  sglang_src_dir: "/mnt/lustre01/users/slurm-shared/shuw/sglang"
+  
   # Prefill-specific environment variables
   prefill_environment:
     TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
@@ -36,6 +44,7 @@ backend:
     SGLANG_MOONCAKE_CUSTOM_MEM_POOL: "True"
     SGLANG_USE_MESSAGE_QUEUE_BROADCASTER: "0"
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
+    SGLANG_LOG_FORWARD_ITERS: "1"
 
   # Decode-specific environment variables
   decode_environment:
@@ -57,7 +66,11 @@ backend:
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
     SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK: "1024"
     SGLANG_CUTEDSL_MOE_NVFP4_DISPATCH: "1"
+    SGLANG_MOE_NVFP4_DISPATCH: "1"
     SGLANG_FLASHINFER_FP4_GEMM_BACKEND: "cutlass"
+    SGLANG_LOG_FORWARD_ITERS: "1"
+   # SGLANG_BLOCK_NONZERO_RANK_CHILDREN: "0"
+
 
   sglang_config:
     prefill:
@@ -85,9 +98,10 @@ backend:
       context-length: 2176
       disable-shared-experts-fusion: true
       eplb-algorithm: "deepseek"
-      enable-eplb: true
-      #enable-expert-distribution-metrics: true
+      #enable-eplb: true
+      enable-expert-distribution-metrics: true
       #expert-distribution-recorder-mode: "stat"
+      #eplb-rebalance-num-iterations: 100
       deepep-config: "/configs/deepep_config.json"
       disaggregation-bootstrap-port: 30001
 
@@ -97,12 +111,12 @@ backend:
       # Memory and token limits
       mem-fraction-static: 0.84
       max-total-tokens: 131072
-      max-prefill-tokens: 32768
-      chunked-prefill-size: 65536
+      max-prefill-tokens: 16384 #32768
+      #chunked-prefill-size: 65536
       enable-single-batch-overlap: true
 
       # Request handling
-      max-running-requests: 30000
+      max-running-requests: 5632
       load-balance-method: "round_robin"
 
       # Performance optimizations
@@ -139,8 +153,9 @@ backend:
       context-length: 2176
       disable-shared-experts-fusion: true
       eplb-algorithm: "deepseek"
-      enable-eplb: true
+      #enable-eplb: true
       #expert-distribution-recorder-mode: "stat"
+      #eplb-rebalance-num-iterations: 100
       #enable-expert-distribution-metrics: true
       deepep-config: "/configs/deepep_config.json"
       disaggregation-bootstrap-port: 30001
@@ -150,11 +165,11 @@ backend:
 
       # Memory and token limits
       mem-fraction-static: 0.83
-      max-total-tokens: 3122380
-      chunked-prefill-size: 786432
+      max-total-tokens: 3122380 #131072
+      chunked-prefill-size: 786432 #65536
 
       # Request handling
-      max-running-requests: 67584
+      max-running-requests: 67854 # 49152
       enable-single-batch-overlap: true
 
       # DeepEP configuration
@@ -164,7 +179,7 @@ backend:
       ep-num-redundant-experts: 32
 
       # CUDA graphs (extensive batch size list)
-      cuda-graph-bs: [1, 2, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256, 264, 272, 280, 288, 296, 304, 312, 320, 328, 336, 344, 352, 360, 368, 376, 384, 416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 1024]
+      cuda-graph-bs: [1408]
       num-reserved-decode-tokens: 112
 
       # Additional decode optimizations
@@ -182,5 +197,5 @@ benchmark:
   type: "sa-bench"
   isl: 1024
   osl: 1024
-  concurrencies: "12000" #1x128x512x2048x4096x8192x12000x15000"
+  concurrencies: "12000"
   req_rate: "inf"

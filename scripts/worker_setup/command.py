@@ -158,6 +158,8 @@ def install_sglang_from_source(sglang_src_path: str = "/ext-sglang-src") -> None
         return
 
     # Verify the path is absolute and exists
+    print("xxxxx"*100)
+    print("install_sglang_from_source" * 100)
     abs_path = os.path.abspath(sglang_src_path)
     # SGLang's Python package is in the 'python' subdirectory
     abs_path = os.path.join(abs_path, 'python')
@@ -201,6 +203,19 @@ def install_sglang_from_source(sglang_src_path: str = "/ext-sglang-src") -> None
         raise RuntimeError(f"Failed to install sglang from {abs_path}")
 
     logging.info("Successfully installed sglang from source")
+
+    # Install mooncake-transfer-engine
+    logging.info("Installing mooncake-transfer-engine==0.3.7.post2")
+    result = subprocess.run(
+        ["python3", "-m", "pip", "install", "mooncake-transfer-engine==0.3.7.post2"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        logging.error(f"Failed to install mooncake-transfer-engine: {result.stderr}")
+        raise RuntimeError("Failed to install mooncake-transfer-engine==0.3.7.post2")
+
+    logging.info("Successfully installed mooncake-transfer-engine==0.3.7.post2")
 
 
 def get_gpu_command(
