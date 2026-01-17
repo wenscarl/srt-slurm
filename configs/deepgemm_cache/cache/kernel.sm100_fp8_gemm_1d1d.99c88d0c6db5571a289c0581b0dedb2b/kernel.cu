@@ -1,0 +1,20 @@
+
+#include <deep_gemm/impls/sm100_fp8_gemm_1d1d.cuh>
+
+using namespace deep_gemm;
+
+static void __instantiate_kernel() {
+    auto ptr = reinterpret_cast<void*>(&sm100_fp8_gemm_1d1d_impl<
+        cute::UMMA::Major::K, cute::UMMA::Major::K,
+        0, 4096, 7168,
+        64, 32, 128,
+        1,
+        128, 128, 64,
+        16,
+        128, 128,
+        1, false,
+        128,
+        GemmType::Normal, false, cutlass::bfloat16_t,
+        EpilogueIdentity
+    >);
+};

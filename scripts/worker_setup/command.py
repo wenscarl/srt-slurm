@@ -216,6 +216,12 @@ def install_sglang_from_source(sglang_src_path: str = "/ext-sglang-src") -> None
         raise RuntimeError("Failed to install mooncake-transfer-engine==0.3.7.post2")
 
     logging.info("Successfully installed mooncake-transfer-engine==0.3.7.post2")
+    result = subprocess.run(
+        ["python3", "-m", "pip", "install", "flashinfer-jit-cache --index-url https://flashinfer.ai/whl/cu129/"],
+        capture_output=True,
+        text=True,
+    )
+    logging.info("Successfully installed flashinfer-jit-cache")
 
 
 def get_gpu_command(

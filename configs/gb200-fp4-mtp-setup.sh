@@ -7,3 +7,4 @@ git remote add origin https://github.com/sgl-project/sglang.git
 git fetch origin
 git checkout origin/${BRANCH}
 pip install mooncake-transfer-engine==0.3.7.post2
+pip install flashinfer 

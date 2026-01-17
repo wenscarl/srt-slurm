@@ -106,6 +106,7 @@ def setup_prefill_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+        install_sglang_from_source()
     else:
         # Install sglang from source when using sglang-router mode (for debugging)
         logging.info(f"Setting up prefill worker {worker_idx}, local rank {local_rank} (sglang-router mode)")
@@ -171,6 +172,7 @@ def setup_decode_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+        install_sglang_from_source()
     else:
         # Install sglang from source when using sglang-router mode (for debugging)
         install_sglang_from_source()
@@ -275,6 +277,7 @@ def setup_aggregated_worker(
 
         # Install dynamo from PyPI (only needed when not using sglang router)
         install_dynamo_wheels(gpu_type)
+        install_sglang_from_source()
     else:
         # Install sglang from source when using sglang-router mode (for debugging)
         logging.info(f"Setting up aggregated worker {worker_idx}, local rank {local_rank} (sglang-router mode)")
