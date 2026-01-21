@@ -5,7 +5,7 @@
 # Example script adapted from https://github.com/kedarpotdar-nv/bench_serving/tree/dynamo-fix.
 
 model_name="deepseek-ai/DeepSeek-R1"
-model_path="/model/"
+model_path="/model/snapshots/25a138f28f49022958b9f2d205f9b7de0cdb6e18/"
 head_node="localhost"
 head_port=8000
 

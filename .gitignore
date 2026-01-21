@@ -46,6 +46,8 @@ configs/etcdctl
 configs/*.whl
 configs/*.deb
 configs/*.tar.gz
+configs/deepgemm_cache/*
+configs/init_expert/*
 
 .ruff_cache/
 *.egg-info/
