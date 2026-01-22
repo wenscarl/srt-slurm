@@ -62,7 +62,7 @@ benchmark:                     # Optional: benchmark config
   osl: 1024
 
 dynamo:                        # Optional: dynamo version
-  version: "0.7.0"
+  version: "0.8.0"
 
 profiling:                     # Optional: profiling config
   type: "none"
@@ -501,7 +501,7 @@ Dynamo installation configuration.
 
 ```yaml
 dynamo:
-  version: "0.7.0"            # Install from PyPI
+  version: "0.8.0"            # Install from PyPI
   # OR
   hash: "abc123"              # Install from git commit
   # OR
@@ -510,7 +510,7 @@ dynamo:
 
 | Field         | Type   | Default | Description                      |
 | ------------- | ------ | ------- | -------------------------------- |
-| `version`     | string | "0.7.0" | PyPI version                     |
+| `version`     | string | "0.8.0" | PyPI version                     |
 | `hash`        | string | null    | Git commit hash (source install) |
 | `top_of_tree` | bool   | false   | Install from main branch         |
 
@@ -1042,7 +1042,7 @@ health_check:
   interval_seconds: 10
 
 dynamo:
-  version: "0.7.0"
+  version: "0.8.0"
 ```
 
 ### Aggregated Mode with SGLang Router

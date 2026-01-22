@@ -97,11 +97,11 @@ class TestDynamoConfig:
     """Tests for DynamoConfig."""
 
     def test_default_version(self):
-        """Default is version 0.7.0."""
+        """Default is version 0.8.0."""
         from srtctl.core.schema import DynamoConfig
 
         config = DynamoConfig()
-        assert config.version == "0.7.0"
+        assert config.version == "0.8.0"
         assert config.hash is None
         assert config.top_of_tree is False
         assert not config.needs_source_install
