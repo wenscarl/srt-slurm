@@ -384,14 +384,15 @@ def endpoints_to_processes(
             port_allocator.next_bootstrap_port(leader_node) if endpoint.mode == "prefill" else None
         )
 
-        # Allocate kv_events port for all worker leaders (globally unique)
-        endpoint_kv_events_port = port_allocator.next_kv_events_port()
-
         for node_rank, node in enumerate(endpoint.nodes):
             is_leader = node_rank == 0
 
             # Only leaders need http_port (for router to connect to)
             http_port = port_allocator.next_http_port(node) if is_leader else 0
+
+            # Allocate kv_events port for each node in the endpoint (globally unique)
+            # Each node publishes KV events independently
+            node_kv_events_port = port_allocator.next_kv_events_port()
 
             processes.append(
                 Process(
@@ -403,7 +404,7 @@ def endpoints_to_processes(
                     endpoint_index=endpoint.index,
                     node_rank=node_rank,
                     bootstrap_port=endpoint_bootstrap_port,
-                    kv_events_port=endpoint_kv_events_port if is_leader else None,
+                    kv_events_port=node_kv_events_port,
                 )
             )
             current_sys_port += 1

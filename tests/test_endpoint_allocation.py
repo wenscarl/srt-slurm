@@ -298,7 +298,7 @@ class TestEndpointsToProcesses:
             assert "," in p.cuda_visible_devices or p.cuda_visible_devices.isdigit()
 
     def test_kv_events_port_allocation(self):
-        """Test that kv_events_port is allocated for all worker leaders."""
+        """Test that kv_events_port is allocated for all nodes (not just leaders)."""
         endpoints = allocate_endpoints(
             num_prefill=2,
             num_decode=2,
@@ -312,22 +312,14 @@ class TestEndpointsToProcesses:
 
         processes = endpoints_to_processes(endpoints, base_sys_port=8081)
 
-        # Get all leaders (they should have kv_events_port)
-        leaders = [p for p in processes if p.is_leader]
-        assert len(leaders) == 4  # 2 prefill + 2 decode
-
-        # All leaders should have globally unique kv_events_port
-        kv_ports = [p.kv_events_port for p in leaders]
-        assert all(port is not None for port in kv_ports)
+        # All processes should have kv_events_port (each node publishes independently)
+        kv_ports = [p.kv_events_port for p in processes]
+        assert all(port is not None for port in kv_ports), "All processes should have kv_events_port"
         assert len(kv_ports) == len(set(kv_ports)), "All kv_events_ports should be globally unique"
 
         # Ports should be sequential starting from 5550
+        # With 2 prefill + 2 decode workers, each on single node = 4 processes = 4 ports
         assert sorted(kv_ports) == [5550, 5551, 5552, 5553]
-
-        # Non-leaders should not have kv_events_port
-        non_leaders = [p for p in processes if not p.is_leader]
-        for p in non_leaders:
-            assert p.kv_events_port is None
 
     def test_kv_events_port_same_node_unique(self):
         """Test kv_events_port is unique even when workers share a node."""
