@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from srtctl.benchmarks.base import AIPerfBenchmarkRunner, SCRIPTS_DIR, register_benchmark
+from srtctl.benchmarks.base import SCRIPTS_DIR, AIPerfBenchmarkRunner, register_benchmark
 
 if TYPE_CHECKING:
     from srtctl.core.runtime import RuntimeContext

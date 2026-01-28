@@ -1,12 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
 """
 vLLM backend configuration.
 
 Implements BackendProtocol for vLLM inference serving with prefill/decode disaggregation.
 Uses dynamo.vllm integration module.
 """
+
+from __future__ import annotations
 
 import builtins
 from collections.abc import Sequence
@@ -18,8 +19,6 @@ from typing import (
     ClassVar,
     Literal,
 )
-
-from srtctl.core.slurm import get_hostname_ip
 
 from marshmallow import Schema
 from marshmallow_dataclass import dataclass
@@ -95,7 +94,7 @@ class VLLMProtocol:
     # BackendProtocol Implementation
     # =========================================================================
 
-    def get_srun_config(self) -> "SrunConfig":
+    def get_srun_config(self) -> SrunConfig:
         """vLLM uses per-process launching (one srun per node)."""
         from srtctl.backends.base import SrunConfig
 
@@ -124,7 +123,7 @@ class VLLMProtocol:
             return dict(self.aggregated_environment)
         return {}
 
-    def get_process_environment(self, process: "Process") -> dict[str, str]:
+    def get_process_environment(self, process: Process) -> dict[str, str]:
         """Get process-specific environment variables for vLLM workers.
 
         vLLM with dynamo requires unique ports for each worker:
@@ -150,14 +149,16 @@ class VLLMProtocol:
 
     def get_benchmark_env(
         self,
-        runtime: "RuntimeContext",
-        processes: list["Process"],
+        runtime: RuntimeContext,
+        processes: list[Process],
         benchmark_type: str,
-        runner: "BenchmarkRunner" | None = None,
+        runner: BenchmarkRunner | None = None,
     ) -> dict[str, str]:
         """Get benchmark-specific env vars for vLLM runs."""
         if runner is None or not isinstance(runner, AIPerfBenchmarkRunner):
             return {}
+
+        from srtctl.core.slurm import get_hostname_ip
 
         urls: list[str] = []
         for process in processes:
@@ -180,7 +181,7 @@ class VLLMProtocol:
         gpus_per_agg: int,
         gpus_per_node: int,
         available_nodes: Sequence[str],
-    ) -> list["Endpoint"]:
+    ) -> list[Endpoint]:
         """Allocate endpoints to nodes."""
         from srtctl.core.topology import allocate_endpoints
 
@@ -211,9 +212,9 @@ class VLLMProtocol:
 
     def endpoints_to_processes(
         self,
-        endpoints: list["Endpoint"],
+        endpoints: list[Endpoint],
         base_sys_port: int = 8081,
-    ) -> list["Process"]:
+    ) -> list[Process]:
         """Convert endpoints to processes.
 
         For DP+EP mode (data-parallel-size set), creates one process per GPU.
@@ -298,9 +299,9 @@ class VLLMProtocol:
 
     def build_worker_command(
         self,
-        process: "Process",
-        endpoint_processes: list["Process"],
-        runtime: "RuntimeContext",
+        process: Process,
+        endpoint_processes: list[Process],
+        runtime: RuntimeContext,
         frontend_type: str = "dynamo",
         profiling_enabled: bool = False,
         nsys_prefix: list[str] | None = None,
