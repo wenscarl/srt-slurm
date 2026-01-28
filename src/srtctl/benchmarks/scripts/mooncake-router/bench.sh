@@ -62,7 +62,7 @@ TRACE_URL="${TRACE_URLS[$WORKLOAD]}"
 
 if [ ! -f "${INPUT_FILE}" ]; then
     echo "Downloading ${WORKLOAD} trace..."
-    wget -qO "${INPUT_FILE}" "${TRACE_URL}"
+    curl -sL -o "${INPUT_FILE}" "${TRACE_URL}"
     echo "Downloaded to ${INPUT_FILE}"
 fi
 
