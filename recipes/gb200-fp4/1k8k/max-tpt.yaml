@@ -7,10 +7,11 @@ frontend:
   type: dynamo
   enable_multiple_frontends: true
   num_additional_frontends: 9
+  nginx_container: "nginx-sqsh"
 
 model:
   path: "dsr1"
-  container: "lmsysorg/sglang:v0.5.5.post2"
+  container: "dynamo-sglang"
   precision: "fp4"
 
 resources:
@@ -243,5 +244,5 @@ benchmark:
   type: "sa-bench"
   isl: 1024
   osl: 8192
-  concurrencies: "256x512x1024x2048x8192"
+  concurrencies: "256x512x1024x2048"
   req_rate: "inf"
