@@ -2,15 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Shared API contract between srtslurm (status reporter) and tripwire (status API).
+Shared API contract for the Status API.
 
 This package defines the canonical Pydantic models and enums for the Status API.
 It has zero internal imports — only depends on pydantic.
 
-Usage (srtslurm side):
+Usage (reporter):
     from srtctl.contract import JobStatus, JobStage, JobCreatePayload, JobUpdatePayload
 
-Usage (tripwire side):
+Usage (server):
     from srtctl.contract import JobStatus, JobStage, JobCreatePayload, JobUpdatePayload
     from srtctl.contract import JobResponse, JobSummary, JobDetail, JobListResponse
 """
