@@ -6,21 +6,12 @@ dynamo:
 frontend:  
   type: dynamo  
   enable_multiple_frontends: true
-<<<<<<< HEAD
-  num_additional_frontends: 4
-  nginx_container: "nginx-sqsh"
-
-model:
-  path: "dsr1"
-  container: "dynamo-sglang"
-=======
   num_additional_frontends: 3
   nginx_container: nginx
 
 model:
   path: "dsfp4"
-  container: "lmsysorg/sglang:v0.5.8-cu130-runtime"
->>>>>>> 686df21 (Update gb200 recipes (#130))
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp4"
 
 resources:

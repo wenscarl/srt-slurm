@@ -11,7 +11,7 @@ frontend:
 
 model:
   path: "dsfp4"
-  container: "lmsysorg/sglang:v0.5.8-cu130-runtime"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp4"
 
 resources:
